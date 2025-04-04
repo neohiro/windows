@@ -1,9 +1,8 @@
 # windows
 Windows New Start - Manual Settings
 
-Using the run dialog you can start changing a few settings after a fresh Windows installation:
-
-	Windows button + R - Advanced System Settings:
+Using run dialog and via basic settings you can start improving after a fresh Windows installation:
+Windows button + R - Advanced System Settings:
 ```
 sysdm.cpl
 ```
@@ -27,7 +26,7 @@ services.msc
 ```
 Turn off services in relation to **remote desktop connection** + others you don't use.
 
-	Windows button + R - Device Manager:
+Windows button + R - Device Manager:
 ```
 devmgmt.msc
 ```
