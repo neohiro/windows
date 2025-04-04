@@ -16,8 +16,10 @@ Click Remote > Turn off remote access.
 - Enable virtualization & other protection settings
 - Disable access to microphone, camera and other sensors by default
 - Disable anything but IPv4 & IPv6 in network adapter settings
-- Set a secure DNS (dnscrypt or WARP or 9.9.9.9,...)
+- Set a secure DNS (dnscrypt, dnslow.me or WARP or 9.9.9.9,...)
 - Install Exploit Protection for most common software
+- Install [VPN software](chrome://extensions/)
+- Install [OnionFruit](https://github.com/dragonfruitnetwork/onionfruit)
 - Harden Defender via [ConfigureDefender](https://github.com/AndyFul/ConfigureDefender)
 - Harden windows extremely with [this git](https://gist.github.com/neohiro/da3dc76dcf77c67878f02fd71ac17358)
 - Debloat Windows further
