@@ -18,8 +18,8 @@ Click Remote > Turn off remote access.
 - Disable anything but IPv4 & IPv6 in network adapter settings
 - Set a secure DNS (dnscrypt or WARP or 9.9.9.9,...)
 - Install Exploit Protection for most common software
-- Harden windows via ConfigureDefender
-- Harden windows fully with [this git](https://gist.github.com/neohiro/da3dc76dcf77c67878f02fd71ac17358)
+- Harden Defender via [ConfigureDefender](https://github.com/AndyFul/ConfigureDefender)
+- Harden windows extremely with [this git](https://gist.github.com/neohiro/da3dc76dcf77c67878f02fd71ac17358)
 - Debloat Windows further
 
 Windows button + R - Open Services:
