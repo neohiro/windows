@@ -6,8 +6,8 @@ Windows button + R - Advanced System Settings:
 ```
 sysdm.cpl
 ```
-Click Performance > Data Execution Prevention and select All Apps. 
-Click Remote > Turn off remote access
+Click Performance > Data Execution Prevention and select All Apps.
+Click Remote > Turn off remote access.
 
 - Uninstall Remote Desktop Manager & OneDrive in Apps
 - Enable encryption if not default in Windows settings
