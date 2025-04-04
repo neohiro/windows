@@ -19,7 +19,7 @@ Click Remote > Turn off remote access.
 - Set a secure DNS (dnscrypt or WARP or 9.9.9.9,...)
 - Install Exploit Protection for most common software
 - Harden windows via ConfigureDefender
-- Harden windows with this git
+- Harden windows fully with [this git https://gist.github.com/neohiro/da3dc76dcf77c67878f02fd71ac17358]
 - Debloat Windows further
 
 Windows button + R - Open Services:
@@ -34,12 +34,13 @@ devmgmt.msc
 ```
 Look for useless devices and disable them.
 
-- Install Ultimate Windows Tweaker and 
+- Install [Ultimate Windows Tweaker https://www.thewindowsclub.com/downloads/UWT5.zip] and
+  	- if not via ConfigDefender before, set a restore point	 
 	- disable ADMINISTRATIVE SHARES $
  	- disable unnecessary accesses to Windows (regedit,..)
 	- turn off user tracking
    	- turn off telemetry
 	- harden network adapter
 
-- Install Spybot 2 and immunize the system
+- Install [Spybot 2 https://www.safer-networking.org/products/spybot-free-edition/download-mirror-1/] and immunize the system
 - Get a non administrator user account to continue your Windows journey
