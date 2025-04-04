@@ -2,11 +2,13 @@
 Windows New Start - Manual Settings
 
 Using run dialog and via basic settings you can start improving after a fresh Windows installation:
+
 Windows button + R - Advanced System Settings:
 ```
 sysdm.cpl
 ```
 Click Performance > Data Execution Prevention and select All Apps.
+
 Click Remote > Turn off remote access.
 
 - Uninstall Remote Desktop Manager & OneDrive in Apps
