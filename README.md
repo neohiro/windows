@@ -18,20 +18,20 @@ Click Remote > Turn off remote access.
 - Disable anything but IPv4 & IPv6 in network adapter settings
 - Set a secure DNS (dnscrypt, dnslow.me or WARP or 9.9.9.9,...)
 - Install Exploit Protection for most common software
-- Install your favorite internet browser
-- Install possible VPN software
+- Install your favorite internet browser (or later for user account only)
+- Install possible VPN software (or later for user account only)
 - Install [OnionFruit](https://github.com/dragonfruitnetwork/onionfruit) for Tor
 - Harden Defender via [ConfigureDefender](https://github.com/AndyFul/ConfigureDefender)
 - Harden windows extremely with [this git](https://gist.github.com/neohiro/da3dc76dcf77c67878f02fd71ac17358)
 - Debloat Windows further
 
-Windows button + R - Open Services:
+Windows + R - Open Services:
 ```
 services.msc
 ```
 Turn off services in relation to **remote desktop connection** + others you don't use.
 
-Windows button + R - Device Manager:
+Windows + R - Device Manager:
 ```
 devmgmt.msc
 ```
