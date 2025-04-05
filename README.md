@@ -12,9 +12,9 @@ Click Performance > Data Execution Prevention and select All Apps.
 Click Remote > Turn off remote access.
 
 - Uninstall Remote Desktop Manager & OneDrive in Apps
-- Enable encryption if not default in Windows settings
-- Enable virtualization & other protection settings
-- Disable access to microphone, camera and other sensors by default
+- Enable encryption if available in Windows settings
+- Enable virtualization if available & other protection settings
+- Disable access to microphone, camera and other sensors if not by default
 - Disable anything but IPv4 & IPv6 in network adapter settings
 - Set a secure DNS (dnscrypt, dnslow.me or WARP or 9.9.9.9,...)
 - Install [Exploit Protection](https://github.com/neohiro/ExploitProtection) for most common software
