@@ -3,7 +3,7 @@ Windows 10 & 11 New Start for Manual Settings
 
 Using run dialog and via basic settings you can start improving after a fresh Windows installation:
 
-Windows button + R - Advanced System Settings:
+Windows button + R for Advanced System Settings:
 ```
 sysdm.cpl
 ```
@@ -25,13 +25,13 @@ Click Remote > Turn off remote access.
 - Harden windows extremely with [this git](https://gist.github.com/neohiro/da3dc76dcf77c67878f02fd71ac17358)
 - Debloat Windows further
 
-Windows + R - Open Services:
+Windows + R to open Services:
 ```
 services.msc
 ```
 Turn off services in relation to **remote desktop connection** + others you don't use.
 
-Windows + R - Device Manager:
+Windows + R for Device Manager:
 ```
 devmgmt.msc
 ```
