@@ -30,7 +30,8 @@ Windows + R to open Services:
 services.msc
 ```
 Turn off services in relation to **remote desktop connection** + others you don't use.
-
+ 
+ 
 Windows + R for Device Manager:
 ```
 devmgmt.msc
