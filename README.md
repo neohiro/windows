@@ -1,7 +1,7 @@
 # Windows
 Windows 10 & 11 New Install Manual Settings
 
-Using run dialog and via basic settings you can start improving after a fresh Windows installation:
+Using run dialog and via basic settings you can start improving security inside settings after a fresh Windows installation:
 
 Windows button + R for Advanced System Settings:
 ```
