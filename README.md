@@ -17,7 +17,7 @@ Click Remote > Turn off remote access.
 - Disable access to microphone, camera and other sensors by default
 - Disable anything but IPv4 & IPv6 in network adapter settings
 - Set a secure DNS (dnscrypt, dnslow.me or WARP or 9.9.9.9,...)
-- Install Exploit Protection for most common software
+- Install [Exploit Protection](https://github.com/neohiro/ExploitProtection) for most common software
 - Install your favorite internet browser (or later for user account only)
 - Install possible VPN software (or later for user account only)
 - Install [OnionFruit](https://github.com/dragonfruitnetwork/onionfruit) for Tor
