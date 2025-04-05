@@ -1,5 +1,5 @@
-# windows
-Windows New Start - Manual Settings
+# Windows
+Windows 10 & 11 New Start - Manual Settings
 
 Using run dialog and via basic settings you can start improving after a fresh Windows installation:
 
