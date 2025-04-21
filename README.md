@@ -22,7 +22,7 @@ Click Remote > Turn off remote access.
 - Install possible VPN software (or later for user account only)
 - Install [OnionFruit](https://github.com/dragonfruitnetwork/onionfruit) for Tor (or later for user account only)
 - Harden Defender via [ConfigureDefender](https://github.com/AndyFul/ConfigureDefender)
-- Harden windows extremely with [this git](https://gist.github.com/neohiro/da3dc76dcf77c67878f02fd71ac17358)
+- Harden windows extremely (STIG) with [this git](https://gist.github.com/neohiro/da3dc76dcf77c67878f02fd71ac17358)
 - Debloat Windows further
 
 Windows + R to open Services:
