@@ -59,29 +59,29 @@ Further on, make use of all the Windows tools available:
 
 Software and Updates:
 
-	- Regularly install all Windows updates to get the latest security patches.
- 	- Keep all other software and drivers up to date.
-  	- Uninstall any unnecessary applications to reduce the attack surface.
+- Regularly install all Windows updates to get the latest security patches.
+- Keep all other software and drivers up to date.
+- Uninstall any unnecessary applications to reduce the attack surface.
 
 Account and Authentication:
 
-	- Use a standard user account for daily tasks and reserve the administrator account for system changes.
-	- Enable multifactor authentication or use Windows Hello (PIN, fingerprint, or face).
-	- Use strong, unique passwords for all accounts, and consider a password manager.
-	- Configure account lockout policies to prevent brute-force attacks.
+- Use a standard user account for daily tasks and reserve the administrator account for system changes.
+- Enable multifactor authentication or use Windows Hello (PIN, fingerprint, or face).
+- Use strong, unique passwords for all accounts, and consider a password manager.
+- Configure account lockout policies to prevent brute-force attacks.
 
 Windows Security Features:
 
-	- Ensure that Windows Defender Antivirus is enabled and up-to-date.
-	- Turn on the Windows Firewall and configure it to block unnecessary network traffic.
-	- Enable User Account Control (UAC) to get prompts for administrative tasks.
-	- Use BitLocker to encrypt your drives, which protects your data if the device is lost or stolen.
-	- Enable Secure Boot in your UEFI settings to ensure only trusted software loads during startup.
-	- Use Controlled Folder Access to protect your important files from ransomware.
+- Ensure that Windows Defender Antivirus is enabled and up-to-date.
+- Turn on the Windows Firewall and configure it to block unnecessary network traffic.
+- Enable User Account Control (UAC) to get prompts for administrative tasks.
+- Use BitLocker to encrypt your drives, which protects your data if the device is lost or stolen.
+- Enable Secure Boot in your UEFI settings to ensure only trusted software loads during startup.
+- Use Controlled Folder Access to protect your important files from ransomware.
 
 Privacy and System Configuration:
 
-	- Review and adjust your privacy settings to control what data is collected.
-	- Disable unnecessary services and features to reduce potential vulnerabilities.
-	- Configure browser security settings, such as enabling SmartScreen and using strict tracking prevention (see [https://github.com/neohiro/htmlinfo htmlinfo]).
-	- Use Windows Sandbox or Microsoft Defender Application Guard for opening untrusted files or Browse suspicious websites in an isolated environment.
+- Review and adjust your privacy settings to control what data is collected.
+- Disable unnecessary services and features to reduce potential vulnerabilities.
+- Configure browser security settings, such as enabling SmartScreen and using strict tracking prevention (see [https://github.com/neohiro/htmlinfo htmlinfo]).
+- Use Windows Sandbox or Microsoft Defender Application Guard for opening untrusted files or Browse suspicious websites in an isolated environment.
