@@ -54,7 +54,9 @@ Look for useless devices and disable them.
 - Install [Spybot 2](https://www.safer-networking.org/products/spybot-free-edition/download-mirror-1/) and immunize the system
 - Get a non administrator user account to continue your Windows journey
 
+
 Further on, make use of all the Windows tools available:
+
 Software and Updates:
 
 	- Regularly install all Windows updates to get the latest security patches.
