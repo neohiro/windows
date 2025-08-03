@@ -83,5 +83,5 @@ Privacy and System Configuration:
 
 - Review and adjust your privacy settings to control what data is collected.
 - Disable unnecessary services and features to reduce potential vulnerabilities.
-- Configure browser security settings, such as enabling SmartScreen and using strict tracking prevention (see [https://github.com/neohiro/htmlinfo htmlinfo]).
+- Configure browser security settings, such as enabling SmartScreen and using strict tracking prevention (see [htmlinfo](https://github.com/neohiro/htmlinfo htmlinfo)).
 - Use Windows Sandbox or Microsoft Defender Application Guard for opening untrusted files or Browse suspicious websites in an isolated environment.
