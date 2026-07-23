@@ -27,7 +27,7 @@ jobs:
           mkdir dist
           copy *.cmd dist\
           copy *.md dist\
-          Compress-Archive -Path "dist\*" -DestinationPath "windows-Windows.zip" -Force
+          Compress-Archive -Path "dist" -DestinationPath "windows-Windows.zip" -Force
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
