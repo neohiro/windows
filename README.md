@@ -1,4 +1,7 @@
 # Windows
+[![Platform](https://img.shields.io/badge/platform-Windows-lightgray.svg)](https://github.com/)
+[![Build Status](https://github.com/neohiro/windows/actions/workflows/release.yml/badge.svg)](https://github.com/neohiro/windows/actions)
+
 Windows 10 & 11 New Install Manual Settings
 
 Using run dialog and via basic settings you can start improving security inside settings after a fresh Windows installation:
