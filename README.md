@@ -1,10 +1,26 @@
 # Windows
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgray.svg)](https://github.com/)
 [![Build Status](https://github.com/neohiro/windows/actions/workflows/release.yml/badge.svg)](https://github.com/neohiro/windows/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Windows 10 & 11 New Install Manual Settings
 
 Using run dialog and via basic settings you can start improving security inside settings after a fresh Windows installation:
+
+## ⚡ Automated hardening script
+
+[`windows_hardening.cmd`](windows_hardening.cmd) automates a large part of this guide: hardened file associations against ransomware, Defender & ASR configuration, firewall rules, DLL load-order protection, privacy settings and more.
+
+1. Download `windows_hardening.cmd` from this repository.
+2. Open an **elevated** Command Prompt (`Run as administrator`).
+3. Run the script and review its output.
+4. Reboot afterwards.
+
+> ⚠️ **Note:** the script re-associates `.bat` and other script files to open in Notepad instead of executing. If you legitimately use these extensions you will need to run them manually from cmd/PowerShell or right-click → *Run as administrator*.
+
+Credits & references are documented at the top and bottom of the script — thanks [@jaredhaight](https://github.com/jaredhaight) (firewall config), [@ricardojba](https://github.com/ricardojba) (DLL Safe Order Search) and [@jessicaknotts](https://github.com/jessicaknotts) (Exploit Guard testing). For debloating, see [Windows10Debloater](https://github.com/Sycnex/Windows10Debloater).
+
+## 🖱️ Manual steps
 
 Windows button + R for Advanced System Settings:
 ```
