@@ -104,3 +104,10 @@ Privacy and System Configuration:
 - Disable unnecessary services and features to reduce potential vulnerabilities.
 - Configure browser security settings, such as enabling SmartScreen and using strict tracking prevention (see [htmlinfo](https://github.com/neohiro/htmlinfo)).
 - Use Windows Sandbox or Microsoft Defender Application Guard for opening untrusted files or Browse suspicious websites in an isolated environment.
+
+---
+
+<p align="center">
+  <a href="https://github.com/sponsors/neohiro"><img src="https://img.shields.io/badge/Sponsor%20on%20GitHub-%E2%9D%A4-EA4AAA?logo=githubsponsors&style=for-the-badge" alt="GitHub Sponsors"></a>&nbsp;&nbsp;
+  <a href="https://www.patreon.com/frenzypenguin_media"><img src="https://img.shields.io/badge/Patreon-frenzypenguin__media-F96854?logo=patreon&style=for-the-badge" alt="Support on Patreon"></a>
+</p>
