@@ -105,7 +105,86 @@ Privacy and System Configuration:
 - Configure browser security settings, such as enabling SmartScreen and using strict tracking prevention (see [htmlinfo](https://github.com/neohiro/htmlinfo)).
 - Use Windows Sandbox or Microsoft Defender Application Guard for opening untrusted files or Browse suspicious websites in an isolated environment.
 
+## 🔒 Core isolation & memory integrity
+
+Windows button + R to check the TPM (required by BitLocker, Windows Hello and Credential Guard):
+```
+tpm.msc
+```
+The TPM should read *ready*. Then open Windows Security → **Device security → Core isolation** and switch ON:
+- **Memory integrity (HVCI)** — stops malicious drivers from writing kernel memory.
+- **Microsoft vulnerable driver blocklist**.
+- On newer hardware also enable **Firmware protection / Secure Launch** where offered.
+
+If memory integrity reports an incompatible driver, update or remove that driver — don't switch the protection off.
+
+## 👤 Credential & account protection
+
+- Enable **LSA Protection** so malware can't dump credentials from memory (elevated Command Prompt):
+```
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v RunAsPPL /t REG_DWORD /d 2 /f
+```
+- Windows 10/11 **Enterprise/Education**: additionally enable **Credential Guard** (isolates secrets in virtualization-based security) — follow "Manage Windows Credential Guard" on Microsoft Learn.
+- Deploy **Windows LAPS** so the local Administrator password is unique per device and auto-rotated — one shared local admin password is a single point of failure across all your machines.
+- Open Local Security Policy (`secpol.msc`) and set:
+  - Account Policies → Password Policy: minimum **14 characters**, history 24, complexity enabled.
+  - Account Policies → Account Lockout Policy: lock after **5** bad attempts, 15-minute reset.
+  - Local Policies → Security Options: **rename** the built-in Administrator and Guest accounts, enable *Interactive logon: Don't display last user name*, and add a logon message title/text.
+- Raise UAC to the top slider (Control Panel → User Accounts → *Change User Account Control settings* → always notify).
+- Let idle sessions lock themselves: enable **Dynamic Lock** (Settings → Accounts → Sign-in options) plus a screensaver lock timeout.
+
+## 🌐 Network protocol hardening
+
+Legacy LAN protocols are the easiest foothold on a home network — kill them (elevated PowerShell):
+```powershell
+Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart
+Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force
+Set-SmbServerConfiguration -RequireSecuritySignature $true -Force
+```
+- Stop **name-poisoning attacks** (Responder/Inveigh): with the same regedit path pattern disable LLMNR:
+```
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" /v EnableMulticast /t REG_DWORD /d 0 /f
+```
+  then for every NIC: adapter Properties → IPv4 → Advanced → WINS tab → **Disable NetBIOS over TCP/IP**, and untick *Automatically detect settings* in Internet Options → Connections → LAN settings (WPAD).
+  
+## ⚡ PowerShell & scripting
+
+```powershell
+Set-ExecutionPolicy RemoteSigned -Force
+```
+- Enable **script block logging**, **module logging** and **transcription** (gpedit.msc → Administrative Templates → Windows Components → Windows PowerShell). Fileless attacks still leave traces worth reading.
+- If you never run legacy `.vbs` / `.js` / `.wsf` scripts, re-associate them to Notepad exactly like the automated script does for `.bat`.
+
+## 🖨️ USB, AutoPlay & printing
+
+- Group Policy (gpedit.msc): *Turn off Autoplay for all drives*, and for shared/kiosk machines consider *Removable Disks: Deny read access*.
+- No printer attached? Disable the print spooler entirely (PrintNightmare class of bugs lives here):
+```powershell
+Stop-Service Spooler -PassThru | Set-Service -StartupType Disabled
+```
+
+## 💾 Backups & recovery plan
+
+Hardening without backups is a gamble — ransomware and dead SSDs happen to everyone eventually:
+
+- Follow **3-2-1**: three copies of important data, on two different media, one copy off-site **and offline** (ransomware happily encrypts everything on mapped drives).
+- Turn on **File History** or scheduled system images; verify System Protection is enabled for C:.
+- Export your **BitLocker recovery key** to your Microsoft account AND store a printed copy somewhere safe — then confirm you can actually retrieve it.
+- Create a **USB recovery drive** (`recoverydrive`) right after setup, while the system is healthy.
+
+## ✅ Post-setup verification
+
+- Run one **Microsoft Defender Offline scan** (Windows Security → Virus & threat protection → Scan options) once setup settles.
+- Audit your work from elevated PowerShell:
+```powershell
+Get-MpComputerStatus            # real-time protection, tamper protection, signatures
+Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol, RequireSecuritySignature
+Get-ChildItem HKLM:\SYSTEM\CurrentControlSet\Control\Lsa | Select-Object RunAsPPL
+```
+- Check Windows Update → Advanced options → enable *Receive updates for other Microsoft products*, then update until nothing is pending.
+
 ---
+
 
 <p align="center">
   <a href="https://github.com/sponsors/neohiro"><img src="https://img.shields.io/badge/Sponsor%20on%20GitHub-%E2%9D%A4-EA4AAA?logo=githubsponsors&style=for-the-badge" alt="GitHub Sponsors"></a>&nbsp;&nbsp;
