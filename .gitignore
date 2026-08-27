@@ -1,0 +1,24 @@
+# Transient state and logs created at runtime
+$env:ProgramData\HardenWindows\
+
+# Snapshot and rollback artifacts created by lib/core.ps1
+*.snap/
+*.snap
+
+# Transcript files written by Start-Transcript
+*.transcript.txt
+
+# OS noise
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Editor files
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Build output
+dist/
+out/
