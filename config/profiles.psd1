@@ -9,7 +9,7 @@
             'browser','office','privacy','fileassoc','biometrics',
             'powershell_v2','appx_debloater','optional_features','backup_recovery'
         )
-        Skip = @('service_debloater','powershell_remoting_disable')
+        Skip = @('service_debloater')
     }
 
     Workstation = @{

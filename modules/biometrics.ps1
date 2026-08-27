@@ -13,10 +13,19 @@ function Set-BiometricsSettings {
         @{ P='HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy';       V='LetAppsActivateWithVoiceAboveLock'; T='REG_DWORD'; D='2' }
         @{ P='HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy';       V='LetAppsActivateWithVoice'; T='REG_DWORD'; D='2' }
     )
+    $okCount = 0; $errCount = 0
     foreach ($k in $keys) {
-        & $do "reg add `"$($k.P)`" /v $($k.V) /t $($k.T) /d $($k.D) /f"
+        try {
+            & $do "reg add `"$($k.P)`" /v $($k.V) /t $($k.T) /d $($k.D) /f"
+            $okCount++
+        } catch {
+            Write-Warn "Biometrics reg add failed for $($k.P)\$($k.V): $_"
+            Add-Change $Module "reg:$($k.P)\$($k.V)" 'unset' 'failed' 'ERR'
+            $errCount++
+        }
     }
-    Add-Change $Module 'Biometrics' 'defaults' 'hardened' $(if($DryRun){'DRY'}else{'OK'})
+    $status = if ($errCount -gt 0) { 'partial' } else { 'OK' }
+    Add-Change $Module 'Biometrics' 'defaults' "${okCount}ok/${errCount}err" $(if($DryRun){'DRY'}else{$status})
     Write-Pass "Biometrics / lock screen hardened."
 }
 

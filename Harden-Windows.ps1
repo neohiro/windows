@@ -82,9 +82,13 @@ Write-Host "Build     : $((Get-CimInstance Win32_OperatingSystem).BuildNumber)"
 Write-Host "Dry run   : $DryRun"
 Write-Host ""
 
-# Restore point
+# Restore point. In non-interactive contexts (CI, piped input, hidden window)
+# we must NOT silently create a system restore point — that would be a hidden
+# filesystem action triggered without an explicit human decision. Default 'N'
+# unless the operator is actually present at the keyboard.
 if (-not $DryRun) {
-    $resp = Invoke-TimedPrompt -Message "Create a system restore point before proceeding?" -Default 'Y' -ValidChars @('Y','N')
+    $restoreDefault = if (Test-IsInteractive) { 'Y' } else { 'N' }
+    $resp = Invoke-TimedPrompt -Message "Create a system restore point before proceeding?" -Default $restoreDefault -ValidChars @('Y','N')
     if ($resp -eq 'Y') { New-SystemRestorePoint | Out-Null }
 }
 

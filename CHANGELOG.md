@@ -19,7 +19,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Snapshot/rollback via `reg export/import` and `sc qc / config`.
 - SHA-256 manifest verification on every bootstrap download.
 - `-DryRun`, `-SkipDebloat`, `-Rollback`, `-SkipVerify`, `-Update` switches.
-- 53-test regression suite (parse, load, dry-run, snapshot, allow-list,
+- 63-test regression suite (parse, load, dry-run, snapshot, allow-list,
   bootstrap, security invariants).
 
 ### Security
@@ -30,6 +30,29 @@ adheres to [Semantic Versioning](https://semver.org/).
   `Invoke-Cmd` which throws on non-zero exit.
 - UAC elevation is forwarded with serializable scalar arguments only
   (`-Profile`, `-DryRun`, `-SkipDebloat`, `-Rollback`); no hashtables.
+
+## [Unreleased]
+
+### Fixed
+- `defender.ps1`: EarlyLaunch driver policy now writes to `HKLM\SYSTEM\...`
+  (kernel-mode enforced hive) instead of `HKCU\SYSTEM\...` (the user's
+  mirror, which silently no-op'd).
+- `Harden-Windows.ps1`: the system-restore-point prompt now defaults to
+  `N` in non-interactive contexts so CI/automated runs never silently
+  create a system restore point.
+- `firewall.ps1`: `Invoke-Netsh` hoisted to module scope (was redefined
+  on every call). Caller now passes `-DryRun` explicitly.
+- `service_debloater.ps1`: per-module snapshot is now skipped in dry-run
+  (the orchestrator already snapshots real runs; duplicate work avoided).
+- Five modules (`office`, `privacy`, `biometrics`, `browser`, `audit_logging`)
+  now wrap their reg-add / auditpol loops in per-iteration try/catch so a
+  single failing entry no longer aborts the rest of the module.
+- `profiles.psd1`: removed stale `powershell_remoting_disable` reference
+  in the Home profile's `Skip` list (no such module exists).
+
+### Security
+- No public behavior changes; the changes are all hardening of internal
+  control flow.
 
 ### Notes
 - Replaces the deprecated `wmic.exe` call in `smb_network.ps1` with a pure

@@ -48,9 +48,15 @@ function Set-ServiceDebloater {
     param([bool]$DryRun, [array]$AllowList)
     Write-Section "Service Debloater (interactive)"
 
-    # Snapshot before changes
-    $snap = New-Snapshot -Label "service-debloat-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-    Write-Info "Service snapshot: $snap"
+    # Snapshot before changes. Skip in dry-run: snapshots call reg export for
+    # five hives plus dump every service, which is wasted I/O when no changes
+    # are being made. The orchestrator already takes a pre-hardening snapshot
+    # for real runs.
+    $snap = $null
+    if (-not $DryRun) {
+        $snap = New-Snapshot -Label "service-debloat-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        Write-Info "Service snapshot: $snap"
+    }
 
     $items = @()
     foreach ($svc in $DefaultServices) {
@@ -128,7 +134,11 @@ function Set-ServiceDebloater {
         $index++
     }
 
-    Write-Pass "Service debloat complete. Snapshot: $snap"
-    Write-Info "To rollback: run 'R' from main menu and pick this snapshot."
+    if ($snap) {
+        Write-Pass "Service debloat complete. Snapshot: $snap"
+        Write-Info "To rollback: run 'R' from main menu and pick this snapshot."
+    } else {
+        Write-Pass "Service debloat dry-run complete (no changes written, no snapshot taken)."
+    }
 }
 

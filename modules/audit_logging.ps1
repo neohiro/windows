@@ -17,7 +17,8 @@ function Set-AuditLogging {
     # Force advanced audit policy
     & $do 'reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v SCENoApplyLegacyAuditPolicy /t REG_DWORD /d 1 /f'
 
-    # Audit subcategories
+    # Audit subcategories. Per-iteration try/catch so one failing subcategory
+    # (e.g. on a Home SKU that doesn't expose it) doesn't abort the rest.
     $auditPol = @(
         @{ Sub='Security Group Management';   S='enable'; F='enable' }
         @{ Sub='Process Creation';             S='enable'; F='enable' }
@@ -30,13 +31,22 @@ function Set-AuditLogging {
         @{ Sub='Security System Extension';    S='enable'; F='enable' }
         @{ Sub='System Integrity';             S='enable'; F='enable' }
     )
+    $auditOk = 0; $auditErr = 0
     foreach ($a in $auditPol) {
-        & $do "Auditpol /set /subcategory:`"$($a.Sub)`" /success:$($a.S) /failure:$($a.F)"
+        try {
+            & $do "Auditpol /set /subcategory:`"$($a.Sub)`" /success:$($a.S) /failure:$($a.F)"
+            $auditOk++
+        } catch {
+            Write-Warn "auditpol failed for '$($a.Sub)': $_"
+            Add-Change $Module "auditpol:$($a.Sub)" 'unset' 'failed' 'ERR'
+            $auditErr++
+        }
     }
+    $auditStatus = if ($auditErr -gt 0) { 'partial' } else { 'on' }
+    Add-Change $Module 'AdvancedAuditPolicy' 'off' $auditStatus $(if($DryRun){'DRY'}else{if($auditErr -eq 0){'OK'}else{'partial'}})
 
     Add-Change $Module 'EventLogSize' '51200' '1024000' $(if($DryRun){'DRY'}else{'OK'})
     Add-Change $Module 'ProcessCreation4688' 'off' 'on' $(if($DryRun){'DRY'}else{'OK'})
-    Add-Change $Module 'AdvancedAuditPolicy' 'off' 'on' $(if($DryRun){'DRY'}else{'OK'})
     Write-Pass "Audit policy + log sizing applied."
 }
 

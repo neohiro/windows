@@ -39,8 +39,10 @@ function Set-DefenderSettings {
     # Network protection
     & $do 'powershell.exe -NoProfile -Command "Set-MpPreference -EnableNetworkProtection Enabled"'
 
-    # Early launch driver policy (default = 3 = good+unknown+bad-critical)
-    & $do 'reg add "HKCU\SYSTEM\CurrentControlSet\Policies\EarlyLaunch" /v DriverLoadPolicy /t REG_DWORD /d 3 /f'
+    # Early launch driver policy (default = 3 = good+unknown+bad-critical).
+    # HKLM not HKCU: HKCU\SYSTEM is the user's mirror of the real HKLM\SYSTEM hive,
+    # and writes there do NOT affect the kernel-mode DriverLoadPolicy enforcement.
+    & $do 'reg add "HKLM\SYSTEM\CurrentControlSet\Policies\EarlyLaunch" /v DriverLoadPolicy /t REG_DWORD /d 3 /f'
 
     # ASR rules
     foreach ($rule in $AsrRules) {
