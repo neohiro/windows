@@ -37,6 +37,7 @@ jobs:
       - name: Regenerate Manifest (LF line endings)
         shell: pwsh
         run: |
+          $repoRoot = (Get-Item -Path "." -Verbose).FullName
           $files = Get-ChildItem -Recurse -File | Where-Object { 
               $_.Extension -in '.ps1','.psd1','.cmd','.md' -and 
               $_.FullName -notmatch '\\.git\\' 
@@ -45,7 +46,7 @@ jobs:
           $manifest = @()
           foreach ($f in $files) {
               $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
-              $rel = $f.FullName.Replace("$($PSScriptRoot)\", '').Replace('\','/')
+              $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\','/')
               $manifest += "$hash  $rel"
           }
           

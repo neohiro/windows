@@ -1,5 +1,12 @@
 # Harden-Windows
 
+[![CI](https://github.com/neohiro/windows/actions/workflows/ci.yml/badge.svg)](https://github.com/neohiro/windows/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/neohiro/windows?include_prereleases&label=latest)](https://github.com/neohiro/windows/releases/latest)
+[![Scoop](https://img.shields.io/badge/scoop-harder--windows-7C4DFF?logo=scoop)](https://scoop.sh)
+[![winget](https://img.shields.io/badge/winget-neohiro.HardenWindows-0078D4?logo=windows)](https://github.com/microsoft/winget-pkgs)
+[![License](https://img.shields.io/github/license/neohiro/windows)](LICENSE)
+[![Discussions](https://img.shields.io/github/discussions/neohiro/windows?color=7C4DFF)](https://github.com/neohiro/windows/discussions)
+
 **One-command Windows 10/11 hardening.** Downloads → double-click → done.
 
 `neohiro/windows` re-imagined as a fully automated, interactive hardening suite with allow-lists, rollback, and debloaters built in.
