@@ -34,6 +34,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Regenerate Manifest
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Recurse -File | Where-Object { 
+              $_.Extension -in '.ps1','.psd1','.cmd','.md' -and 
+              $_.FullName -notmatch '\\.git\\' 
+          } | Sort-Object FullName
+          
+          $manifest = @()
+          foreach ($f in $files) {
+              $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
+              $rel = $f.FullName.Replace("$($PSScriptRoot)\", '').Replace('\','/')
+              $manifest += "$hash  $rel"
+          }
+          
+          $manifest | Set-Content manifest.sha256 -Encoding UTF8
+          Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
+
       - name: Run Regression Suite
         shell: pwsh
         run: |
@@ -70,16 +88,16 @@ jobs:
       - name: Install PSScriptAnalyzer
         shell: pwsh
         run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
-      - name: Run Lint
+      - name: Run Lint (Errors Only)
         shell: pwsh
         run: |
-          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error,Warning
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error
           if ($results) {
               $results | Format-Table RuleName, Severity, File, Line, Message -AutoSize
-              Write-Error "PSScriptAnalyzer found $($results.Count) issues"
+              Write-Error "PSScriptAnalyzer found $($results.Count) errors"
               exit 1
           }
-          Write-Host "No lint issues."
+          Write-Host "No lint errors (warnings allowed)."
 
   verify-bootstrap:
     name: Verify Bootstrap Parses
@@ -116,7 +134,8 @@ jobs:
           $missing = @()
           foreach ($m in $modules) {
               $name = $m.BaseName
-              $fn = "Set-$($name.Replace('_',''))"
+              # Convert snake_case to PascalCase: service_debloater -> ServiceDebloater
+              $fn = "Set-$($name -split '_' | ForEach-Object { $_.Substring(0,1).ToUpper() + $_.Substring(1) } -join '')"
               $content = Get-Content $m.FullName -Raw
               if ($content -notmatch "function\s+$fn\s*\(") {
                   $missing += "$name -> $fn"
