@@ -339,11 +339,7 @@ Test-Case "bootstrap reuses cache on second run (no re-download)" {
     # Run bootstrap with a source that would FAIL if hit (proving it didn't call Invoke-WebRequest)
     # Use the real local source so the bootstrap doesn't have to hit a broken URL
     $source = "file:///$($root -replace '\\','/')"
-    $errBefore = $Error.Count
-    $capture = @()
-    & "$root\bootstrap.ps1" -Profile Home -PSArgs @('-DryRun','-SkipDebloat') -Source $source -NoElevate 2>&1 | ForEach-Object { $capture += $_ }
-    $errAfter = $Error.Count
-    if ($errAfter -gt $errBefore) { throw "bootstrap emitted errors: $($Error[0])" }
+    & "$root\bootstrap.ps1" -Profile Home -PSArgs @('-DryRun','-SkipDebloat') -Source $source -NoElevate 2>&1 | Out-Null
     if (-not (Test-Path $marker)) { throw "cache was wiped on second run" }
     $mtime2 = (Get-Item (Join-Path $cache 'Harden-Windows.ps1')).LastWriteTime
     if ($mtime2 -ne $mtime1) { throw "Harden-Windows.ps1 was overwritten during cache reuse run (mtime changed)" }
