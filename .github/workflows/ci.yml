@@ -142,7 +142,7 @@ jobs:
                   continue
               }
               $content = Get-Content $m.FullName -Raw
-              if ($content -notmatch "function\s+$fn\s*\(") {
+              if ($content -notmatch "function\s+$fn\s*[\(\{]") {
                   $missing += "$name -> $fn"
               }
           }
