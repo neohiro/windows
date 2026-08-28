@@ -1,0 +1,147 @@
+name: CI - Test & Lint
+
+on:
+  push:
+    branches: [ master, main ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - '.gitignore'
+      - 'docs/**'
+      - '*.json'
+      - '*.yaml'
+      - '*.yml'
+  pull_request:
+    branches: [ master, main ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - '.gitignore'
+      - 'docs/**'
+      - '*.json'
+      - '*.yaml'
+      - '*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Regression Tests
+    runs-on: windows-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Regression Suite
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests/regression.ps1
+
+      - name: Verify Manifest Completeness
+        shell: pwsh
+        run: |
+          $manifest = Get-Content manifest.sha256 -Raw
+          $entries = $manifest -split "`r?`n" | Where-Object { $_ -match '^[a-f0-9]{64}\s{2}.+$' }
+          Write-Host "Manifest entries: $($entries.Count)"
+          
+          $missing = @()
+          foreach ($line in $entries) {
+              if ($line -match '^[a-f0-9]{64}\s{2}(.+)$') {
+                  $path = $Matches[1]
+                  if (-not (Test-Path $path)) {
+                      $missing += $path
+                  }
+              }
+          }
+          if ($missing.Count -gt 0) {
+              Write-Error "Manifest references missing files: $($missing -join ', ')"
+              exit 1
+          }
+          Write-Host "All manifest files present."
+
+  lint:
+    name: PowerShell Lint (PSScriptAnalyzer)
+    runs-on: windows-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+      - name: Run Lint
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error,Warning
+          if ($results) {
+              $results | Format-Table RuleName, Severity, File, Line, Message -AutoSize
+              Write-Error "PSScriptAnalyzer found $($results.Count) issues"
+              exit 1
+          }
+          Write-Host "No lint issues."
+
+  verify-bootstrap:
+    name: Verify Bootstrap Parses
+    runs-on: windows-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Bootstrap (Syntax Check)
+        shell: pwsh
+        run: |
+          $null = [System.Management.Automation.Language.Parser]::ParseFile('bootstrap.ps1', [ref]$null, [ref]$null)
+          Write-Host "bootstrap.ps1 parses cleanly"
+
+      - name: Verify Help Comment Block
+        shell: pwsh
+        run: |
+          $content = Get-Content bootstrap.ps1 -Raw
+          if ($content -notmatch '\.SYNOPSIS') {
+              Write-Error "Missing .SYNOPSIS help block"
+              exit 1
+          }
+          Write-Host "Help comment block present"
+
+  verify-modules:
+    name: Verify Module Structure
+    runs-on: windows-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check All Modules Have Set-* Function
+        shell: pwsh
+        run: |
+          $modules = Get-ChildItem modules\*.ps1
+          $missing = @()
+          foreach ($m in $modules) {
+              $name = $m.BaseName
+              $fn = "Set-$($name.Replace('_',''))"
+              $content = Get-Content $m.FullName -Raw
+              if ($content -notmatch "function\s+$fn\s*\(") {
+                  $missing += "$name -> $fn"
+              }
+          }
+          if ($missing.Count -gt 0) {
+              Write-Error "Modules missing Set-* function: $($missing -join ', ')"
+              exit 1
+          }
+          Write-Host "All $($modules.Count) modules have Set-* function"
+
+      - name: Verify fnMap Coverage
+        shell: pwsh
+        run: |
+          $orchestrator = Get-Content Harden-Windows.ps1 -Raw
+          $fnMapMatches = [regex]::Matches($orchestrator, "'([^']+)'\s*=\s*'Set-([^']+)'")
+          $mappedModules = @()
+          foreach ($m in $fnMapMatches) {
+              $mappedModules += $m.Groups[1].Value
+          }
+          
+          $modules = Get-ChildItem modules\*.ps1 | ForEach-Object { $_.BaseName }
+          $unmapped = $modules | Where-Object { $_ -notin $mappedModules }
+          if ($unmapped.Count -gt 0) {
+              Write-Error "Modules not in fnMap: $($unmapped -join ', ')"
+              exit 1
+          }
+          Write-Host "fnMap covers all $($modules.Count) modules"

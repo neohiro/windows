@@ -1,0 +1,36 @@
+PackageIdentifier: neohiro.HardenWindows
+PackageName: Harden-Windows
+PackageVersion: 1.0.0
+Publisher: neohiro
+PublisherUrl: https://github.com/neohiro
+PublisherSupportUrl: https://github.com/neohiro/windows/issues
+Author: neohiro
+PackageUrl: https://github.com/neohiro/windows
+License: MIT
+LicenseUrl: https://github.com/neohiro/windows/blob/main/LICENSE
+Copyright: Copyright (c) 2024 neohiro
+ShortDescription: One-command Windows 10/11 hardening with interactive profiles, allow-lists, rollback, and SHA-256 verified bootstrap
+Description: Harden-Windows is a production-grade Windows hardening suite with 18 modular hardening domains (Defender ASR, Firewall, SMB/Network, Privacy, Account Lockout, USB, PowerShell Logging, Audit, Browser, Office, File Associations, Biometrics, PSv2 Removal, Service/Appx Debloaters, Optional Features, Backup/Recovery). Features 4 interactive profiles (Home, Workstation, Developer, Custom), allow-list engine for exemptions, full registry+service snapshot rollback, dry-run preview mode, and a SHA-256 verified bootstrap installer (irm | iex).
+Moniker: harden-windows
+Tags:
+- security
+- hardening
+- windows
+- privacy
+- defender
+- firewall
+- debloat
+- rollback
+- powershell
+ReleaseNotes: |
+  Initial release v1.0.0
+  - 18 hardening modules covering ASR rules, firewall, SMB, privacy, logging, debloat, and more
+  - 4 profiles: Home, Workstation, Developer, Custom
+  - Allow-list engine (services, Appx, per-module)
+  - Full rollback via registry + service snapshots
+  - Dry-run mode for safe preview
+  - SHA-256 verified bootstrap (26-file manifest)
+  - 71 regression tests
+ReleaseNotesUrl: https://github.com/neohiro/windows/releases/tag/v1.0.0
+ManifestType: locale
+ManifestVersion: 1.6.0

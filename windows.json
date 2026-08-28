@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "description": "One-command Windows 10/11 hardening with interactive profiles, allow-lists, rollback, and SHA-256 verified bootstrap",
+  "homepage": "https://github.com/neohiro/windows",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/neohiro/windows/releases/download/v1.0.0/bootstrap.ps1",
+      "hash": "c79b4d10c0ddd3d409fe4997d48f4b03aed3154cdf8b3d88aa55ae9190ef4bc0"
+    }
+  },
+  "bin": [
+    [
+      "bootstrap.ps1",
+      "harden-windows"
+    ]
+  ],
+  "checkver": {
+    "github": "https://github.com/neohiro/windows"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/neohiro/windows/releases/download/v$version/bootstrap.ps1"
+      }
+    },
+    "hash": {
+      "url": "https://github.com/neohiro/windows/releases/download/v$version/manifest.sha256",
+      "find": "^([a-f0-9]{64})\\s+bootstrap\\.ps1$"
+    }
+  },
+  "notes": [
+    "Run 'harden-windows' from an elevated PowerShell to start the interactive hardening menu.",
+    "Or run with a profile: 'harden-windows -Profile Home'",
+    "Dry-run mode: 'harden-windows -DryRun'",
+    "Rollback: 'harden-windows -Rollback'"
+  ]
+}

@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Tag Format
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+              Write-Error "Tag must match vX.Y.Z format (got: $tag)"
+              exit 1
+          }
+          Write-Host "Tag format valid: $tag"
+
+      - name: Run Regression Tests
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests/regression.ps1
+
+      - name: Regenerate Manifest
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Recurse -File | Where-Object { 
+              $_.Extension -in '.ps1','.psd1','.cmd','.md' -and 
+              $_.FullName -notmatch '\\.git\\' 
+          } | Sort-Object FullName
+          
+          $manifest = @()
+          foreach ($f in $files) {
+              $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
+              $rel = $f.FullName.Replace("$($PSScriptRoot)\", '').Replace('\','/')
+              $manifest += "$hash  $rel"
+          }
+          
+          $manifest | Set-Content manifest.sha256 -Encoding UTF8
+          Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
+          
+          # Show bootstrap hash for verification
+          $bootHash = (Get-FileHash -Path bootstrap.ps1 -Algorithm SHA256).Hash.ToLower()
+          Write-Host "bootstrap.ps1 SHA256: $bootHash"
+
+      - name: Commit Manifest Update
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.sha256
+          if (-not (git diff --cached --quiet)) {
+              git commit -m "chore: update manifest.sha256 for ${{ github.ref_name }}"
+              git push
+          } else {
+              Write-Host "Manifest unchanged"
+          }
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Harden-Windows ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            bootstrap.ps1
+            manifest.sha256
+            Harden-Windows.ps1
+            harden.cmd
+            README.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify Release Assets
+        shell: pwsh
+        run: |
+          $release = gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name'
+          $expected = @('bootstrap.ps1','manifest.sha256','Harden-Windows.ps1','harden.cmd','README.md')
+          foreach ($e in $expected) {
+              if ($release -notcontains $e) {
+                  Write-Error "Missing release asset: $e"
+                  exit 1
+              }
+          }
+          Write-Host "All $($expected.Count) assets verified"

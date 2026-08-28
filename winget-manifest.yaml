@@ -1,0 +1,17 @@
+PackageIdentifier: neohiro.HardenWindows
+PackageVersion: 1.0.0
+InstallerType: script
+InstallerSwitches:
+  Silent: "-Profile Home -SkipDebloat"
+  SilentWithProgress: "-Profile Home -SkipDebloat"
+  Interactive: ""
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/neohiro/windows/releases/download/v1.0.0/bootstrap.ps1
+  InstallerSha256: c79b4d10c0ddd3d409fe4997d48f4b03aed3154cdf8b3d88aa55ae9190ef4bc0
+  InstallerLocale: en-US
+  Scope: machine
+  InstallerSwitches:
+    Custom: "-NoElevate"
+ManifestType: installer
+ManifestVersion: 1.6.0
