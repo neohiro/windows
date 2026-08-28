@@ -34,24 +34,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Regenerate Manifest
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem -Recurse -File | Where-Object { 
-              $_.Extension -in '.ps1','.psd1','.cmd','.md' -and 
-              $_.FullName -notmatch '\\.git\\' 
-          } | Sort-Object FullName
-          
-          $manifest = @()
-          foreach ($f in $files) {
-              $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
-              $rel = $f.FullName.Replace("$($PSScriptRoot)\", '').Replace('\','/')
-              $manifest += "$hash  $rel"
-          }
-          
-          $manifest | Set-Content manifest.sha256 -Encoding UTF8
-          Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
-
       - name: Run Regression Suite
         shell: pwsh
         run: |
@@ -135,7 +117,14 @@ jobs:
           foreach ($m in $modules) {
               $name = $m.BaseName
               # Convert snake_case to PascalCase: service_debloater -> ServiceDebloater
-              $fn = "Set-$($name -split '_' | ForEach-Object { $_.Substring(0,1).ToUpper() + $_.Substring(1) } -join '')"
+              $parts = $name -split '_'
+              $pascal = ''
+              foreach ($p in $parts) {
+                  if ($p.Length -gt 0) {
+                      $pascal += $p.Substring(0,1).ToUpper() + $p.Substring(1)
+                  }
+              }
+              $fn = "Set-$pascal"
               $content = Get-Content $m.FullName -Raw
               if ($content -notmatch "function\s+$fn\s*\(") {
                   $missing += "$name -> $fn"

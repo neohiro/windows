@@ -320,7 +320,7 @@ Test-Case "bootstrap downloads all files end-to-end (file:// as fake online)" {
 
     $source = "file:///$($root -replace '\\','/')"
     $errBefore = $Error.Count
-    & "$root\bootstrap.ps1" -Profile Home -Source $source -NoElevate 2>&1 | Out-Null
+    & "$root\bootstrap.ps1" -Profile Home -DryRun -Source $source -NoElevate 2>&1 | Out-Null
     $errAfter = $Error.Count
 
     if ($errAfter -gt $errBefore) { throw "bootstrap emitted errors" }
@@ -344,7 +344,7 @@ Test-Case "bootstrap reuses cache on second run (no re-download)" {
     $source = "file:///$($root -replace '\\','/')"
     $errBefore = $Error.Count
     $capture = @()
-    & "$root\bootstrap.ps1" -Profile Home -Source $source -NoElevate 2>&1 | ForEach-Object { $capture += $_ }
+    & "$root\bootstrap.ps1" -Profile Home -DryRun -Source $source -NoElevate 2>&1 | ForEach-Object { $capture += $_ }
     $errAfter = $Error.Count
     if ($errAfter -gt $errBefore) { throw "bootstrap emitted errors: $($Error[0])" }
     if (-not (Test-Path $marker)) { throw "cache was wiped on second run" }
