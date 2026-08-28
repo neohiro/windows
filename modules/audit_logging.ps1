@@ -37,7 +37,7 @@ function Set-AuditLogging {
             & $do "Auditpol /set /subcategory:`"$($a.Sub)`" /success:$($a.S) /failure:$($a.F)"
             $auditOk++
         } catch {
-            Write-Warn "auditpol failed for '$($a.Sub)': $_"
+            Write-Warn "auditpol failed for '$($a.Sub)': $($_.Exception.Message)"
             Add-Change $Module "auditpol:$($a.Sub)" 'unset' 'failed' 'ERR'
             $auditErr++
         }

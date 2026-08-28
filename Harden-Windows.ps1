@@ -59,7 +59,10 @@ if ($DryRun) {
     Write-Banner "DRY RUN -- No changes will be written"
 }
 
-if ($Rollback) {
+# Rollback is the same operation whether invoked from the CLI (-Rollback) or
+# from the menu ('R' key). Centralize the logic to avoid the two paths drifting
+# apart over time.
+function Invoke-LatestRollback {
     Initialize-Logging
     $snapshots = Get-ChildItem "$env:ProgramData\HardenWindows\State\snapshot-*\manifest.json" -ErrorAction SilentlyContinue
     if ($snapshots) {
@@ -69,16 +72,26 @@ if ($Rollback) {
         Write-Warn "No snapshots found."
     }
     Close-Logging
+}
+
+if ($Rollback) {
+    Invoke-LatestRollback
     return
 }
 
 # --- Init ------------------------------------------------------------------
 Initialize-Logging
 Write-Banner "Harden-Windows  |  neohiro/windows enhanced"
+
+# One CIM query for the OS metadata that the banner prints; saves a round-trip
+# to WMI per field.
+$osInfo = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+$osCaption   = if ($osInfo) { $osInfo.Caption }     else { 'Unknown' }
+$osBuild     = if ($osInfo) { $osInfo.BuildNumber } else { '?' }
 Write-Host "Timestamp  : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 Write-Host "Admin     : $([Security.Principal.WindowsIdentity]::GetCurrent().Name)"
-Write-Host "OS        : $((Get-CimInstance Win32_OperatingSystem).Caption)"
-Write-Host "Build     : $((Get-CimInstance Win32_OperatingSystem).BuildNumber)"
+Write-Host "OS        : $osCaption"
+Write-Host "Build     : $osBuild"
 Write-Host "Dry run   : $DryRun"
 Write-Host ""
 
@@ -180,18 +193,7 @@ if (-not $Profile -or $Profile -eq 'Custom') {
                 Write-Host "Dry run mode" -ForegroundColor Yellow
                 $Profile = 'Home'
             }
-            'R' {
-                Initialize-Logging
-                $snapshots = Get-ChildItem "$env:ProgramData\HardenWindows\State\snapshot-*\manifest.json" -ErrorAction SilentlyContinue
-                if ($snapshots) {
-                    $latest = $snapshots | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                    Restore-Snapshot -ManifestPath $latest.FullName
-                } else {
-                    Write-Warn "No snapshots found."
-                }
-                Close-Logging
-                return
-            }
+            'R' { Invoke-LatestRollback; return }
             'Q' { Write-Host "Exiting." -ForegroundColor DarkGray; return }
             default { $Profile = 'Home' }
         }
@@ -222,6 +224,31 @@ if (-not $DryRun) {
 }
 
 # --- Run modules -----------------------------------------------------------
+# Map module name to its Set-* function. Single source of truth: any new
+# module must add its entry here AND define the corresponding function in
+# the module file. The regression suite verifies the mapping is complete.
+# Hoisted out of the per-module loop so it isn't rebuilt for every module.
+$fnMap = @{
+    'core'                = 'Set-CoreSettings'
+    'defender'            = 'Set-DefenderSettings'
+    'firewall'            = 'Set-FirewallSettings'
+    'smb_network'         = 'Set-SmbNetworkSettings'
+    'account_lockout'     = 'Set-AccountLockoutSettings'
+    'usb_autoplay'        = 'Set-UsbAutoplaySettings'
+    'powershell_logging'  = 'Set-PowerShellLogging'
+    'audit_logging'       = 'Set-AuditLogging'
+    'browser'             = 'Set-BrowserSettings'
+    'office'              = 'Set-OfficeSettings'
+    'privacy'             = 'Set-PrivacySettings'
+    'fileassoc'           = 'Set-FileAssocSettings'
+    'biometrics'          = 'Set-BiometricsSettings'
+    'powershell_v2'       = 'Set-PowerShellV2'
+    'optional_features'   = 'Set-OptionalFeatures'
+    'backup_recovery'     = 'Set-BackupRecovery'
+    'service_debloater'   = 'Set-ServiceDebloater'
+    'appx_debloater'      = 'Set-AppxDebloater'
+}
+
 Write-Host ""
 Write-Host "Running modules: $($selectedModules.Count)" -ForegroundColor Cyan
 Write-Host ""
@@ -239,29 +266,6 @@ foreach ($modName in $selectedModules) {
         continue
     }
 
-    # Map module name to its Set-* function. Single source of truth: any new
-    # module must add its entry here AND define the corresponding function in
-    # the module file. The regression suite verifies the mapping is complete.
-    $fnMap = @{
-        'core'                = 'Set-CoreSettings'
-        'defender'            = 'Set-DefenderSettings'
-        'firewall'            = 'Set-FirewallSettings'
-        'smb_network'         = 'Set-SmbNetworkSettings'
-        'account_lockout'     = 'Set-AccountLockoutSettings'
-        'usb_autoplay'        = 'Set-UsbAutoplaySettings'
-        'powershell_logging'  = 'Set-PowerShellLogging'
-        'audit_logging'       = 'Set-AuditLogging'
-        'browser'             = 'Set-BrowserSettings'
-        'office'              = 'Set-OfficeSettings'
-        'privacy'             = 'Set-PrivacySettings'
-        'fileassoc'           = 'Set-FileAssocSettings'
-        'biometrics'          = 'Set-BiometricsSettings'
-        'powershell_v2'       = 'Set-PowerShellV2'
-        'optional_features'   = 'Set-OptionalFeatures'
-        'backup_recovery'     = 'Set-BackupRecovery'
-        'service_debloater'   = 'Set-ServiceDebloater'
-        'appx_debloater'      = 'Set-AppxDebloater'
-    }
     $fnName = $fnMap[$modName]
     if (-not $fnName) { Write-Warn "Unknown module (not in fnMap): $modName"; continue }
 
@@ -270,7 +274,7 @@ foreach ($modName in $selectedModules) {
         try {
             & $fnName -DryRun $DryRun -AllowList $allAllowList
         } catch {
-            Write-Warn "Module error [$modName]: $_"
+            Write-Warn "Module error [$modName]: $($_.Exception.Message)"
             Add-Change $modName 'module' '?' 'error' 'ERR'
         }
     } else {
@@ -281,16 +285,19 @@ foreach ($modName in $selectedModules) {
 # --- Summary ---------------------------------------------------------------
 Write-Host ""
 Write-Banner "Results"
-$ok    = $Script:Changes | Where-Object { $_.Status -eq 'OK' }
-$skip  = $Script:Changes | Where-Object { $_.Status -eq 'SKIP' }
-$err   = $Script:Changes | Where-Object { $_.Status -eq 'ERR' }
-$dry   = $Script:Changes | Where-Object { $_.Status -eq 'DRY' }
+# $Script:Changes may be null if Initialize-Logging failed before $Script:Changes
+# was initialized (e.g. transcript path was unwritable). Guard the pipeline.
+$changes = if ($null -eq $Script:Changes) { @() } else { @($Script:Changes) }
+$ok    = $changes | Where-Object { $_.Status -eq 'OK' }
+$skip  = $changes | Where-Object { $_.Status -eq 'SKIP' }
+$err   = $changes | Where-Object { $_.Status -eq 'ERR' }
+$dry   = $changes | Where-Object { $_.Status -eq 'DRY' }
 
-Write-Host "Applied   : $($ok.Count)" -ForegroundColor Green
-Write-Host "Skipped   : $($skip.Count)" -ForegroundColor DarkGray
-Write-Host "Errors    : $($err.Count)" -ForegroundColor Red
-Write-Host "Dry-run   : $($dry.Count)" -ForegroundColor Yellow
-Write-Host "Total     : $($Script:Changes.Count)"
+Write-Host "Applied   : $(@($ok).Count)" -ForegroundColor Green
+Write-Host "Skipped   : $(@($skip).Count)" -ForegroundColor DarkGray
+Write-Host "Errors    : $(@($err).Count)" -ForegroundColor Red
+Write-Host "Dry-run   : $(@($dry).Count)" -ForegroundColor Yellow
+Write-Host "Total     : $(@($changes).Count)"
 
 Close-Logging
 

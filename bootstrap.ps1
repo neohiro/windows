@@ -121,7 +121,9 @@ if ($needDownload) {
     Write-Host "[>>] Downloading Harden-Windows..." -ForegroundColor Yellow
 
     # Fetch the signed manifest first. It contains "sha256  relative/path" lines.
-    $MANIFEST_URL  = "$Source/manifest.sha256".Replace('\','/')
+    # Only replace path separators in the inventory paths, not in $Source itself,
+    # to avoid mangling a local filesystem path passed as -Source.
+    $MANIFEST_URL  = "$Source/manifest.sha256"
     $MANIFEST_TMP  = Join-Path $env:TEMP "HardenWindows-manifest-$(Get-Random).sha256"
     if ($SkipVerify) {
         Write-Host "  [--] Hash verification skipped (-SkipVerify)" -ForegroundColor DarkGray
@@ -144,7 +146,7 @@ if ($needDownload) {
                 Write-Host "  [OK] manifest.sha256 ($($knownHashes.Count) entries)" -ForegroundColor Green
             }
         } catch {
-            Write-Host "  [!!] manifest.sha256 fetch failed: $_" -ForegroundColor Red
+            Write-Host "  [!!] manifest.sha256 fetch failed: $($_.Exception.Message)" -ForegroundColor Red
             Write-Host "  [ii] Falling back to hash-verification disabled mode." -ForegroundColor Yellow
             $knownHashes = @{}  # empty = skip verification
         }
@@ -157,6 +159,15 @@ if ($needDownload) {
         $null = New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent)
         try {
             Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -ErrorAction Stop
+            # A successful download must be non-empty and not an HTML error page
+            # masquerading as content (e.g. a raw GitHub 404 page).
+            if (-not (Test-Path $dest) -or (Get-Item $dest).Length -eq 0) {
+                throw "Downloaded file is empty"
+            }
+            $head = Get-Content $dest -TotalCount 1 -ErrorAction SilentlyContinue
+            if ($head -and $head -match '^\s*<\s*!?doctype\s+html|<html|<HTML') {
+                throw "Downloaded file is HTML, not the expected content (likely a 404/403 page)"
+            }
             if ($knownHashes.Count -gt 0 -and $knownHashes.ContainsKey($f)) {
                 $actual = (Get-FileHash -Path $dest -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash.ToLower()
                 if ($actual -ne $knownHashes[$f]) {
@@ -169,7 +180,9 @@ if ($needDownload) {
             }
             Write-Host "  [OK] $f" -ForegroundColor Green
         } catch {
-            Write-Host "  [!!] $f : $_" -ForegroundColor Red
+            Write-Host "  [!!] $f : $($_.Exception.Message)" -ForegroundColor Red
+            # Delete the corrupted/empty file so the next run can retry cleanly
+            Remove-Item $dest -Force -ErrorAction SilentlyContinue
             $failed += $f
         }
     }
@@ -201,12 +214,21 @@ $forwardArgs = @{
     ConfigPath = (Join-Path $cache 'config')
 }
 if ($Profile) { $forwardArgs.Profile = $Profile }
-foreach ($a in $PSArgs) {
-    if ($a -match '^-DryRun$')              { $forwardArgs.DryRun = $true; continue }
-    if ($a -match '^-SkipDebloat$')         { $forwardArgs.SkipDebloat = $true; continue }
-    if ($a -match '^-Rollback$')            { $forwardArgs.Rollback = $true; continue }
-    if ($a -match '^-Profile\s*(\S+)$')     { $forwardArgs.Profile = $Matches[1]; continue }
+
+# Parse forwarded PSArgs one token at a time. Supports:
+#   -DryRun, -SkipDebloat, -Rollback (flag tokens)
+#   -Profile <value>  (two-token form: flag, then value)
+#   -Profile:<value>  (colon form: single token)
+$i = 0
+while ($i -lt $PSArgs.Count) {
+    $a = $PSArgs[$i]
+    if ($a -eq '-DryRun')              { $forwardArgs.DryRun = $true; $i++; continue }
+    if ($a -eq '-SkipDebloat')         { $forwardArgs.SkipDebloat = $true; $i++; continue }
+    if ($a -eq '-Rollback')            { $forwardArgs.Rollback = $true; $i++; continue }
+    if ($a -eq '-Profile')             { $i++; if ($i -lt $PSArgs.Count) { $forwardArgs.Profile = $PSArgs[$i] }; $i++; continue }
+    if ($a -match '^-Profile:(.+)$')  { $forwardArgs.Profile = $Matches[1]; $i++; continue }
     Write-Host "[ii] Unknown forwarded arg ignored: $a" -ForegroundColor DarkGray
+    $i++
 }
 
 Write-Host ""

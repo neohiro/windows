@@ -78,7 +78,7 @@ function Set-SmbNetworkSettings {
                 if ($LASTEXITCODE -ne 0) { throw "reg add exited $LASTEXITCODE" }
                 Add-Change $Module 'Kerberos:EncryptionTypes' 'mixed' 'AES-only' 'OK'
             } catch {
-                Write-Warn "Kerberos hardening failed: $_"
+                Write-Warn "Kerberos hardening failed: $($_.Exception.Message)"
                 Add-Change $Module 'Kerberos:EncryptionTypes' 'mixed' 'failed' 'ERR'
             }
         }
@@ -127,7 +127,7 @@ function Set-NetbiosPerInterface {
             New-ItemProperty -Path $target -Name 'NetbiosOptions' -Value 1 -PropertyType DWord -Force | Out-Null
             $okCount++
         } catch {
-            Write-Warn "NetBIOS hardening failed for $g : $_"
+            Write-Warn "NetBIOS hardening failed for $g : $($_.Exception.Message)"
             $errCount++
         }
     }

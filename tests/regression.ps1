@@ -799,6 +799,103 @@ Test-Case "service_debloater skips snapshot in dry-run" {
     return $true
 }
 
+# ── Self-improvement pass 2/2 fixes ───────────────────────────────────────
+
+Test-Case "Harden-Windows.ps1 rollback is de-duplicated via Invoke-LatestRollback" {
+    $c = Get-Content "$root\Harden-Windows.ps1" -Raw
+    # The shared helper must exist
+    if ($c -notmatch 'function\s+Invoke-LatestRollback') {
+        throw "Invoke-LatestRollback helper not defined; rollback is duplicated"
+    }
+    # The CLI -Rollback branch must call the helper instead of inlining the code
+    $cliRollbackIdx = $c.IndexOf('if ($Rollback) {')
+    if ($cliRollbackIdx -lt 0) { throw "CLI -Rollback branch not found" }
+    $snippetAfter = $c.Substring($cliRollbackIdx, 200)
+    if ($snippetAfter -notmatch 'Invoke-LatestRollback') {
+        throw "CLI -Rollback branch does not call Invoke-LatestRollback"
+    }
+    # The menu 'R' branch must call the helper
+    if ($c -notmatch "'R'\s*\{\s*Invoke-LatestRollback") {
+        throw "Menu 'R' branch does not call Invoke-LatestRollback"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1 fnMap is defined once, not per-module loop iteration" {
+    $c = Get-Content "$root\Harden-Windows.ps1" -Raw
+    # Count hashtable literal initializations of fnMap; should be exactly 1.
+    $count = ([regex]::Matches($c, '\$fnMap\s*=\s*@\{')).Count
+    if ($count -ne 1) { throw "Expected exactly 1 `$fnMap hashtable assignment, found $count" }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1 OS metadata uses a single Get-CimInstance call" {
+    $c = Get-Content "$root\Harden-Windows.ps1" -Raw
+    # Count Win32_OperatingSystem lookups; should be exactly 1.
+    $count = ([regex]::Matches($c, 'Get-CimInstance\s+Win32_OperatingSystem')).Count
+    if ($count -ne 1) { throw "Expected 1 Get-CimInstance Win32_OperatingSystem call, found $count" }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1 summary block tolerates null `$Script:Changes" {
+    $c = Get-Content "$root\Harden-Windows.ps1" -Raw
+    # The summary block must build a local $changes array that is empty
+    # if $Script:Changes is null, so the downstream Where-Object pipelines
+    # don't throw on null input.
+    if ($c -notmatch 'if\s*\(\s*\$null\s*-eq\s+\$Script:Changes\s*\)\s*\{\s*@\(\s*\)\s*\}') {
+        throw "Summary block does not guard against null `$Script:Changes"
+    }
+    return $true
+}
+
+Test-Case "bootstrap.ps1 forwards -Profile value correctly (two-token and colon form)" {
+    $c = Get-Content "$root\bootstrap.ps1" -Raw
+    if ($c -notmatch 'if\s*\(\s*\$a\s+-eq\s+''-Profile''\s*\)\s*\{') {
+        throw "bootstrap.ps1 does not handle the two-token -Profile <value> form"
+    }
+    # Colon form: literal source text "if ($a -match '^..." must appear
+    if ($c -notmatch [regex]::Escape("-Profile:(.+")) {
+        throw "bootstrap.ps1 does not handle the -Profile:<value> colon form"
+    }
+    return $true
+}
+
+Test-Case "bootstrap.ps1 detects empty/HTML error responses from Invoke-WebRequest" {
+    $c = Get-Content "$root\bootstrap.ps1" -Raw
+    if ($c -notmatch "Downloaded file is empty") {
+        throw "bootstrap.ps1 does not check for empty downloaded files"
+    }
+    if ($c -notmatch "Downloaded file is HTML") {
+        throw "bootstrap.ps1 does not check for HTML error pages"
+    }
+    return $true
+}
+
+Test-Case "appx_debloater.ps1 Get-AppxPackage wrapped in try/catch" {
+    $c = Get-Content "$root\modules\appx_debloater.ps1" -Raw
+    if ($c -notmatch 'try\s*\{\s*\$installed\s*=\s*@\(Get-AppxPackage') {
+        throw "Get-AppxPackage is not wrapped in try/catch"
+    }
+    if ($c -notmatch 'Get-AppxProvisionedPackage failed') {
+        throw "Get-AppxProvisionedPackage failure not handled"
+    }
+    return $true
+}
+
+Test-Case "lib\\core.ps1 Restore-Snapshot builds hashtable explicitly (no Group-Object)" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    # The old code used Group-Object -AsHashTable; the new code uses an
+    # explicit hashtable so each entry is a single ServiceController, not
+    # a single-element array.
+    if ($c -match 'Group-Object.*-AsHashTable') {
+        throw "Restore-Snapshot still uses Group-Object -AsHashTable"
+    }
+    if ($c -notmatch 'foreach\s*\(\s*\$svc\s+in\s+Get-Service\s*\)') {
+        throw "Restore-Snapshot does not build hashtable with explicit foreach over Get-Service"
+    }
+    return $true
+}
+
 Write-Host ""
 Write-Host "=== Results: $pass passed, $fail failed ===" -ForegroundColor $(if($fail -eq 0){'Green'}else{'Red'})
 exit $fail

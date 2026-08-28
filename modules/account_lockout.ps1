@@ -60,7 +60,7 @@ function Set-AccountLockoutSettings {
             Add-Change $Module 'secpol:all' 'defaults' 'hardened' 'OK'
         }
     } catch {
-        Write-Warn "secedit failed: $_"
+        Write-Warn "secedit failed: $($_.Exception.Message)"
         Add-Change $Module 'secpol:all' 'defaults' 'exception' 'ERR'
     }
 

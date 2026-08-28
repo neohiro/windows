@@ -20,7 +20,7 @@ function Set-BrowserSettings {
             & $do "reg add `"$($k.P)`" /v $($k.V) /t $($k.T) /d $($k.D) /f"
             $edgeOk++
         } catch {
-            Write-Warn "Browser reg add failed for $($k.P)\$($k.V): $_"
+            Write-Warn "Browser reg add failed for $($k.P)\$($k.V): $($_.Exception.Message)"
             Add-Change $Module "reg:$($k.P)\$($k.V)" 'unset' 'failed' 'ERR'
             $edgeErr++
         }
@@ -49,7 +49,7 @@ function Set-BrowserSettings {
             & $do "reg add `"HKLM\SOFTWARE\Policies\Google\Chrome`" /v `"$($p.V)`" /t $($p.T) /d $($p.D) /f"
             $chromeOk++
         } catch {
-            Write-Warn "Chrome policy reg add failed for $($p.V): $_"
+            Write-Warn "Chrome policy reg add failed for $($p.V): $($_.Exception.Message)"
             Add-Change $Module "reg:Chrome\$($p.V)" 'unset' 'failed' 'ERR'
             $chromeErr++
         }

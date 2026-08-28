@@ -124,7 +124,7 @@ function Set-ServiceDebloater {
                     if ($newType -eq 'Disabled') { Stop-Service -Name $it.Name -Force -ErrorAction SilentlyContinue }
                     Add-Change $Module "service:$($it.Name)" $it.StartType $it.Action 'OK'
                 } catch {
-                    Write-Warn "  Failed: $_"
+                    Write-Warn "  Failed: $($_.Exception.Message)"
                     Add-Change $Module "service:$($it.Name)" $it.StartType $it.Action 'ERR'
                 }
             }

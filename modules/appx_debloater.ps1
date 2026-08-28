@@ -27,7 +27,16 @@ function Set-AppxDebloater {
         return
     }
 
-    $installed = Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+    # Appx enumeration can throw on heavily-restricted or partially-corrupt
+    # Windows installs even with -ErrorAction SilentlyContinue (the cmdlet
+    # internally rethrows a COM exception on certain Win11 24H2 builds).
+    # Wrap each query so a failure doesn't take down the whole module.
+    try {
+        $installed = @(Get-AppxPackage -AllUsers -ErrorAction Stop)
+    } catch {
+        Write-Warn "Get-AppxPackage failed: $($_.Exception.Message)"
+        $installed = @()
+    }
     $candidates = @()
     foreach ($p in $DefaultAppx) {
         $matches = $installed | Where-Object { $_.Name -like $p }
@@ -43,7 +52,12 @@ function Set-AppxDebloater {
     }
 
     # Provisioned too
-    $prov = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+    try {
+        $prov = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop)
+    } catch {
+        Write-Warn "Get-AppxProvisionedPackage failed: $($_.Exception.Message)"
+        $prov = @()
+    }
     foreach ($p in $DefaultAppx) {
         $matches = $prov | Where-Object { $_.DisplayName -like $p }
         foreach ($m in $matches) {
@@ -81,7 +95,7 @@ function Set-AppxDebloater {
                 if ($DryRun) { Write-Info "DRY-RUN: remove $($c.Name)"; Add-Change $Module "appx:$($c.Name)" 'installed' 'preview-removed' 'DRY' }
                 else {
                     try { & $do; Add-Change $Module "appx:$($c.Name)" 'installed' 'removed' 'OK' }
-                    catch { Write-Warn "  Failed: $_"; Add-Change $Module "appx:$($c.Name)" 'installed' 'failed' 'ERR' }
+                    catch { Write-Warn "  Failed: $($_.Exception.Message)"; Add-Change $Module "appx:$($c.Name)" 'installed' 'failed' 'ERR' }
                 }
             }
             'A' {

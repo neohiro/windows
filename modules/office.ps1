@@ -29,7 +29,7 @@ function Set-OfficeSettings {
         try {
             & $do "reg add `"$($k.P)`" /v $($k.V) /t $($k.T) /d $($k.D) /f"
         } catch {
-            Write-Warn "Office reg add failed for $($k.P)\$($k.V): $_"
+            Write-Warn "Office reg add failed for $($k.P)\$($k.V): $($_.Exception.Message)"
             Add-Change $Module "reg:$($k.P)\$($k.V)" 'unset' 'failed' 'ERR'
         }
     }
@@ -47,7 +47,7 @@ function Set-OfficeSettings {
         try {
             & $do "reg add `"$($k.P)`" /v $($k.V) /t REG_DWORD /d $($k.D) /f"
         } catch {
-            Write-Warn "Office DDE reg add failed for $($k.P)\$($k.V): $_"
+            Write-Warn "Office DDE reg add failed for $($k.P)\$($k.V): $($_.Exception.Message)"
             Add-Change $Module "reg:$($k.P)\$($k.V)" 'unset' 'failed' 'ERR'
         }
     }

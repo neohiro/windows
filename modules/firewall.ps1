@@ -15,7 +15,7 @@ function Invoke-Netsh {
     try {
         $null = cmd /c "netsh $Args 2>NUL"
     } catch {
-        Write-Warn "netsh $Args failed: $_"
+        Write-Warn "netsh $Args failed: $($_.Exception.Message)"
     }
 }
 

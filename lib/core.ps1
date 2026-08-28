@@ -95,7 +95,7 @@ function Initialize-Logging {
         Start-Transcript -Path $Script:TranscriptPath -Append -ErrorAction Stop | Out-Null
     } catch {
         # Last-ditch: log to a file we own, no transcript
-        Write-Host "[!!] Start-Transcript failed: $_" -ForegroundColor Red
+        Write-Host "[!!] Start-Transcript failed: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "[!!] Transcript logging disabled; changes will still be written to $($Script:ChangeLogPath)" -ForegroundColor Yellow
         $Script:TranscriptPath = $null
     }
@@ -125,7 +125,7 @@ function Close-Logging {
             )
             $changeLogWritten = $true
         } catch {
-            Write-Host "[!!] Failed to write change log: $_" -ForegroundColor Red
+            Write-Host "[!!] Failed to write change log: $($_.Exception.Message)" -ForegroundColor Red
         }
     }
     if ($Script:TranscriptPath) {
@@ -239,10 +239,16 @@ function New-Snapshot {
 
     # Services: real values
     $svcPath = Join-Path $snapDir 'services.json'
-    [System.IO.File]::WriteAllText($svcPath,
-        (Get-Service | Select-Object Name, Status, StartType | ConvertTo-Json -Depth 3),
-        [System.Text.Encoding]::UTF8)
+    try {
+        [System.IO.File]::WriteAllText($svcPath,
+            (Get-Service | Select-Object Name, Status, StartType | ConvertTo-Json -Depth 3),
+            [System.Text.Encoding]::UTF8)
+    } catch {
+        throw "Failed to write services snapshot ($svcPath): $($_.Exception.Message)"
+    }
 
+    # Manifest: must be written last so Restore-Snapshot can rely on it as the
+    # integrity gate (if the manifest is absent or corrupt, restore bails early).
     $manifest = @{
         Timestamp = (Get-Date).ToString("o")
         Label     = $Label
@@ -250,9 +256,13 @@ function New-Snapshot {
         Services  = $svcPath
     }
     $manifestPath = Join-Path $snapDir 'manifest.json'
-    [System.IO.File]::WriteAllText($manifestPath,
-        ($manifest | ConvertTo-Json -Depth 5),
-        [System.Text.Encoding]::UTF8)
+    try {
+        [System.IO.File]::WriteAllText($manifestPath,
+            ($manifest | ConvertTo-Json -Depth 5),
+            [System.Text.Encoding]::UTF8)
+    } catch {
+        throw "Failed to write snapshot manifest ($manifestPath): $($_.Exception.Message)"
+    }
     return $manifestPath
 }
 
@@ -270,8 +280,10 @@ function Restore-Snapshot {
     $svcRestored = 0
     $svcFailed   = 0
     if ($snap.Services -and (Test-Path $snap.Services)) {
-        $svcData  = Get-Content $snap.Services -Raw | ConvertFrom-Json
-        $current  = @(Get-Service | Group-Object -Property Name -AsHashTable -AsString)
+        $svcData  = @(Get-Content $snap.Services -Raw | ConvertFrom-Json)
+    # Build a Name -> service hashtable for O(1) lookup.
+        $current = @{}
+        foreach ($svc in Get-Service) { $current[$svc.Name] = $svc }
         foreach ($s in $svcData) {
             $cur = $current[$s.Name]
             if (-not $cur) { continue }  # service not installed anymore
@@ -348,7 +360,7 @@ function Get-AllowList {
             return $parsed
         } catch {
             # Corrupt JSON. Surface a warning so the user knows to fix the file.
-            Write-Warn "allowlist.json at $path is not valid JSON: $_"
+            Write-Warn "allowlist.json at $path is not valid JSON: $($_.Exception.Message)"
             Write-Warn "Using empty default allow-list. Edit the file to restore."
             return $default
         }

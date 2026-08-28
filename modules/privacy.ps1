@@ -34,7 +34,7 @@ function Set-PrivacySettings {
             & $do "reg add `"$($k.P)`" /v $($k.V) /t $($k.T) /d $($k.D) /f"
             $okCount++
         } catch {
-            Write-Warn "Privacy reg add failed for $($k.P)\$($k.V): $_"
+            Write-Warn "Privacy reg add failed for $($k.P)\$($k.V): $($_.Exception.Message)"
             Add-Change $Module "reg:$($k.P)\$($k.V)" 'unset' 'failed' 'ERR'
             $errCount++
         }
