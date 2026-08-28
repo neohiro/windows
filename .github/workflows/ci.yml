@@ -113,18 +113,34 @@ jobs:
         shell: pwsh
         run: |
           $modules = Get-ChildItem modules\*.ps1
+          $expectedFunctions = @{
+              'core'                = 'Set-CoreSettings'
+              'defender'            = 'Set-DefenderSettings'
+              'firewall'            = 'Set-FirewallSettings'
+              'smb_network'         = 'Set-SmbNetworkSettings'
+              'account_lockout'     = 'Set-AccountLockoutSettings'
+              'usb_autoplay'        = 'Set-UsbAutoplaySettings'
+              'powershell_logging'  = 'Set-PowerShellLogging'
+              'audit_logging'       = 'Set-AuditLogging'
+              'browser'             = 'Set-BrowserSettings'
+              'office'              = 'Set-OfficeSettings'
+              'privacy'             = 'Set-PrivacySettings'
+              'fileassoc'           = 'Set-FileAssocSettings'
+              'biometrics'          = 'Set-BiometricsSettings'
+              'powershell_v2'       = 'Set-PowerShellV2'
+              'optional_features'   = 'Set-OptionalFeatures'
+              'backup_recovery'     = 'Set-BackupRecovery'
+              'service_debloater'   = 'Set-ServiceDebloater'
+              'appx_debloater'      = 'Set-AppxDebloater'
+          }
           $missing = @()
           foreach ($m in $modules) {
               $name = $m.BaseName
-              # Convert snake_case to PascalCase: service_debloater -> ServiceDebloater
-              $parts = $name -split '_'
-              $pascal = ''
-              foreach ($p in $parts) {
-                  if ($p.Length -gt 0) {
-                      $pascal += $p.Substring(0,1).ToUpper() + $p.Substring(1)
-                  }
+              $fn = $expectedFunctions[$name]
+              if (-not $fn) {
+                  $missing += "$name (no expected function mapping)"
+                  continue
               }
-              $fn = "Set-$pascal"
               $content = Get-Content $m.FullName -Raw
               if ($content -notmatch "function\s+$fn\s*\(") {
                   $missing += "$name -> $fn"

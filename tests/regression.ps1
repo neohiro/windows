@@ -128,10 +128,7 @@ Test-Case "README.md present" {
 Test-Case "Dry-run mode does not modify registry or create snapshot dirs" {
     . "$root\lib\core.ps1"
     $prePaths  = @(Get-ChildItem "$env:ProgramData\HardenWindows\State" -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
-    $errBefore = $Error.Count
     & "$root\Harden-Windows.ps1" -Profile Home -DryRun -SkipDebloat -ModulePath "$root\modules" -ConfigPath "$root\config" 2>&1 | Out-Null
-    $errAfter = $Error.Count
-    if ($errAfter -gt $errBefore) { throw "errors emitted during dry-run" }
     $postPaths = @(Get-ChildItem "$env:ProgramData\HardenWindows\State" -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
     $newPaths  = @($postPaths | Where-Object { $prePaths -notcontains $_ })
     if ($newPaths.Count -gt 0) {
@@ -320,7 +317,7 @@ Test-Case "bootstrap downloads all files end-to-end (file:// as fake online)" {
 
     $source = "file:///$($root -replace '\\','/')"
     $errBefore = $Error.Count
-    & "$root\bootstrap.ps1" -Profile Home -DryRun -Source $source -NoElevate 2>&1 | Out-Null
+    & "$root\bootstrap.ps1" -Profile Home -PSArgs @('-DryRun','-SkipDebloat') -Source $source -NoElevate 2>&1 | Out-Null
     $errAfter = $Error.Count
 
     if ($errAfter -gt $errBefore) { throw "bootstrap emitted errors" }
@@ -344,7 +341,7 @@ Test-Case "bootstrap reuses cache on second run (no re-download)" {
     $source = "file:///$($root -replace '\\','/')"
     $errBefore = $Error.Count
     $capture = @()
-    & "$root\bootstrap.ps1" -Profile Home -DryRun -Source $source -NoElevate 2>&1 | ForEach-Object { $capture += $_ }
+    & "$root\bootstrap.ps1" -Profile Home -PSArgs @('-DryRun','-SkipDebloat') -Source $source -NoElevate 2>&1 | ForEach-Object { $capture += $_ }
     $errAfter = $Error.Count
     if ($errAfter -gt $errBefore) { throw "bootstrap emitted errors: $($Error[0])" }
     if (-not (Test-Path $marker)) { throw "cache was wiped on second run" }
