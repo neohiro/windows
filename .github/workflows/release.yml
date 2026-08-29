@@ -49,7 +49,7 @@ jobs:
               $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
               $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\','/')
               $manifest += "$hash  $rel"
-          
+          }
           $manifest | Set-Content manifest.sha256 -Encoding UTF8
           Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
           
