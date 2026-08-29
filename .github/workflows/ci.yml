@@ -48,7 +48,6 @@ jobs:
               $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
               $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\','/')
               $manifest += "$hash  $rel"
-          }
           
           $manifest | Set-Content manifest.sha256 -Encoding UTF8
           Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
@@ -86,9 +85,23 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - uses: actions/checkout@v4
-      - name: Install PSScriptAnalyzer
+      - name: Cache PSScriptAnalyzer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\Documents\WindowsPowerShell\Modules\PSScriptAnalyzer
+            ~\Documents\PowerShell\Modules\PSScriptAnalyzer
+          key: psscriptanalyzer-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: |
+            psscriptanalyzer-${{ runner.os }}-
+      - name: Install PSScriptAnalyzer (if not cached)
         shell: pwsh
-        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+        run: |
+          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer -ErrorAction SilentlyContinue)) {
+              Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          } else {
+              Write-Host "PSScriptAnalyzer found in cache"
+          }
       - name: Run Lint (Errors Only)
         shell: pwsh
         run: |
@@ -121,6 +134,22 @@ jobs:
               exit 1
           }
           Write-Host "Help comment block present"
+
+      - name: Verify Bootstrap Handles Missing Manifest Gracefully
+        shell: pwsh
+        run: |
+          # Test that bootstrap handles missing manifest gracefully (offline scenario)
+          $tempDir = Join-Path $env:TEMP "HardenWindows-test-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+          Copy-Item bootstrap.ps1 $tempDir
+          Set-Location $tempDir
+          # Should fail gracefully with missing manifest, not crash
+          $result = & .\bootstrap.ps1 -Profile Home -Source "file:///C:/nonexistent" -NoElevate 2>&1
+          if ($LASTEXITCODE -eq 0) {
+              Write-Error "Expected bootstrap to fail with missing manifest"
+              exit 1
+          }
+          Write-Host "Bootstrap handles missing manifest gracefully (exit code: $LASTEXITCODE)"
 
   verify-modules:
     name: Verify Module Structure
@@ -188,3 +217,59 @@ jobs:
               exit 1
           }
           Write-Host "fnMap covers all $($modules.Count) modules"
+
+  verify-core-functions:
+    name: Verify Core Functions Export
+    runs-on: windows-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Core Function Exports
+        shell: pwsh
+        run: |
+          . ./lib/core.ps1
+          $requiredFunctions = @(
+              'Invoke-SelfElevate', 'Test-IsAdmin', 'Test-WindowsVersion', 'Write-Banner',
+              'Write-Section', 'Write-Pass', 'Write-Warn', 'Write-Info', 'Write-Skip',
+              'Initialize-Logging', 'Add-Change', 'Close-Logging',
+              'Show-MainMenu', 'Invoke-TimedPrompt', 'Test-IsInteractive',
+              'New-Snapshot', 'Restore-Snapshot', 'New-SystemRestorePoint',
+              'Get-AllowList', 'Set-AllowList', 'Invoke-Cmd'
+          )
+          $missing = @()
+          foreach ($f in $requiredFunctions) {
+              if (-not (Get-Command $f -ErrorAction SilentlyContinue)) {
+                  $missing += $f
+              }
+          }
+          if ($missing.Count -gt 0) {
+              Write-Error "Missing core functions: $($missing -join ', ')"
+              exit 1
+          }
+          Write-Host "All $($requiredFunctions.Count) core functions exported"
+
+  verify-config:
+    name: Verify Config Files
+    runs-on: windows-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Profiles Config
+        shell: pwsh
+        run: |
+          $pd = Import-PowerShellDataFile -Path config/profiles.psd1
+          foreach ($k in 'Home','Workstation','Developer') {
+              if (-not $pd.ContainsKey($k)) { throw "Missing profile: $k" }
+              if ($pd[$k].Modules.Count -lt 5) { throw "$k has too few modules: $($pd[$k].Modules.Count)" }
+          }
+          Write-Host "Profiles config valid"
+      
+      - name: Verify AllowList Config
+        shell: pwsh
+        run: |
+          $al = Import-PowerShellDataFile -Path config/default.AllowList.psd1
+          if ($null -eq $al) { throw "AllowList is null" }
+          if ($null -eq $al.Services) { throw "AllowList.Services missing" }
+          if ($null -eq $al.Appx) { throw "AllowList.Appx missing" }
+          if ($null -eq $al.Modules) { throw "AllowList.Modules missing" }
+          Write-Host "AllowList config valid"

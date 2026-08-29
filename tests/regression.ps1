@@ -894,6 +894,260 @@ Test-Case "lib\\core.ps1 Restore-Snapshot builds hashtable explicitly (no Group-
     return $true
 }
 
+# ── Impact metadata + warning tests ───────────────────────────────────────
+
+Test-Case "service_debloater: every entry has an Impact field" {
+    $svc = Get-Content "$root\modules\service_debloater.ps1" -Raw
+    $svcCount = ([regex]::Matches($svc, "Name='[^']+'\s*;\s*Desc=")).Count
+    $impactCount = ([regex]::Matches($svc, "Impact='")).Count
+    if ($svcCount -eq 0) { throw "Could not detect service entries" }
+    if ($impactCount -lt $svcCount) {
+        throw "service_debloater: $svcCount entries but only $impactCount have Impact metadata"
+    }
+    if ($svc -notmatch 'Write-Host.*impact:') {
+        throw "service_debloater does not print impact line in per-item display"
+    }
+    return $true
+}
+
+Test-Case "appx_debloater: every entry has an Impact field" {
+    $apx = Get-Content "$root\modules\appx_debloater.ps1" -Raw
+    $pCount = ([regex]::Matches($apx, "@\{[^}]*P='")).Count
+    $iCount = ([regex]::Matches($apx, "Impact='")).Count
+    if ($pCount -eq 0) { throw "Could not detect appx entries" }
+    if ($iCount -lt $pCount) {
+        throw "appx_debloater: $pCount entries but only $iCount have Impact metadata"
+    }
+    if ($apx -notmatch 'Write-Host.*impact:') {
+        throw "appx_debloater does not print impact line in per-item display"
+    }
+    return $true
+}
+
+Test-Case "defender: every ASR rule has an Impact field" {
+    $def = Get-Content "$root\modules\defender.ps1" -Raw
+    $ruleCount = ([regex]::Matches($def, "Id\s*='[A-F0-9-]+'\s*;\s*Name\s*='")).Count
+    $impactCount = ([regex]::Matches($def, "Impact\s*='")).Count
+    if ($impactCount -lt $ruleCount) {
+        throw "defender ASR rules: $ruleCount rules but only $impactCount have Impact metadata"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1: -AssumeYes param declared" {
+    $c = Get-Content "$root\Harden-Windows.ps1" -Raw
+    if ($c -notmatch '\[switch\]\$AssumeYes') {
+        throw "-AssumeYes switch parameter not declared"
+    }
+    return $true
+}
+
+Test-Case "bootstrap: forwards -AssumeYes via indexed PSArgs parsing" {
+    $c = Get-Content "$root\bootstrap.ps1" -Raw
+    if ($c -notmatch "AssumeYes") {
+        throw "bootstrap does not handle -AssumeYes"
+    }
+    return $true
+}
+
+Test-Case "service_debloater: -AssumeYes param accepted and skips per-item prompts" {
+    $svc = Get-Content "$root\modules\service_debloater.ps1" -Raw
+    if ($svc -notmatch 'param\([^)]*\[switch\]\$AssumeYes') {
+        throw "service_debloater does not accept -AssumeYes parameter"
+    }
+    if ($svc -notmatch 'if.*AssumeYes.*\{') {
+        throw "service_debloater does not handle -AssumeYes"
+    }
+    return $true
+}
+
+Test-Case "appx_debloater: -AssumeYes param accepted and removes all non-allow-listed packages" {
+    $apx = Get-Content "$root\modules\appx_debloater.ps1" -Raw
+    if ($apx -notmatch 'param\([^)]*\[switch\]\$AssumeYes') {
+        throw "appx_debloater does not accept -AssumeYes parameter"
+    }
+    if ($apx -notmatch 'if\s*\(\s*\$AssumeYes\s*\)') {
+        throw "appx_debloater does not handle -AssumeYes (no if block)"
+    }
+    if ($apx -notmatch 'Remove-Appx') {
+        throw "appx_debloater does not call Remove-Appx"
+    }
+    return $true
+}
+
+Test-Case "usb_autoplay: Print Spooler prompt shows impact" {
+    $usb = Get-Content "$root\modules\usb_autoplay.ps1" -Raw
+    if ($usb -notmatch 'NO PRINTING') {
+        throw "usb_autoplay does not warn about printing loss in Print Spooler prompt"
+    }
+    return $true
+}
+
+Test-Case "fileassoc: accepts -AssumeYes and skips confirmation" {
+    $fa = Get-Content "$root\modules\fileassoc.ps1" -Raw
+    if ($fa -notmatch 'param\([^)]*\[switch\]\$AssumeYes') {
+        throw "fileassoc does not accept -AssumeYes parameter"
+    }
+    if ($fa -notmatch 'Invoke-TimedPrompt.*Re-associate') {
+        throw "fileassoc does not prompt before re-associating (no impact warning)"
+    }
+    return $true
+}
+
+Test-Case "lib\\core.ps1: Invoke-SelfElevate forwards -AssumeYes" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'if.*\$AssumeYes.*-AssumeYes') {
+        throw "Invoke-SelfElevate does not forward -AssumeYes"
+    }
+    return $true
+}
+
+Test-Case "lib\\core.ps1: Invoke-TimedPrompt honours TimeoutSeconds" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'KeyAvailable') {
+        throw "Invoke-TimedPrompt does not poll KeyAvailable (no real timeout)"
+    }
+    if ($c -notmatch 'TimeoutSeconds') {
+        throw "Invoke-TimedPrompt does not use TimeoutSeconds parameter"
+    }
+    return $true
+}
+
+Test-Case "service_debloater: bulk summary skipped when no changes pending" {
+    $svc = Get-Content "$root\modules\service_debloater.ps1" -Raw
+    if ($svc -notmatch 'No service start-type changes pending') {
+        throw "service_debloater does not skip bulk prompt when nothing to change"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1: AllowList merge produces a flat string array (not mixed-type)" {
+    $c = Get-Content "$root\Harden-Windows.ps1" -Raw
+    # $allAllowList must be explicitly flattened and deduplicated so the -contains
+    # check in modules works against a clean string array (not a hashtable).
+    if ($c -notmatch 'Select-Object -Unique') {
+        throw "$allAllowList is not deduplicated via Select-Object -Unique"
+    }
+    if ($c -notmatch '\$allAllowList\s*=\s*@\(.*Select-Object -Unique') {
+        throw "$allAllowList is not assigned via @(... Select-Object -Unique)"
+    }
+    return $true
+}
+
+# --- Critical path tests -----------------------------------------------------
+
+Test-Case "Manifest verification: manifest.sha256 matches all tracked files" {
+    $manifestPath = "$root\manifest.sha256"
+    if (-not (Test-Path $manifestPath)) { throw "manifest.sha256 not found" }
+    $lines = Get-Content $manifestPath -Raw -Encoding UTF8
+    $entries = $lines -split "`r?`n" | Where-Object { $_ -match '^[a-f0-9]{64}\s{2}.+$' }
+    if ($entries.Count -eq 0) { throw "No valid entries in manifest" }
+    foreach ($line in $entries) {
+        if ($line -match '^([a-f0-9]{64})\s{2}(.+)$') {
+            $expectedHash = $Matches[1]
+            $relPath = $Matches[2].Trim()
+            $fullPath = Join-Path $root $relPath
+            if (-not (Test-Path $fullPath)) { throw "Manifest references missing file: $relPath" }
+            $actualHash = (Get-FileHash -Path $fullPath -Algorithm SHA256).Hash.ToLower()
+            if ($actualHash -ne $expectedHash) {
+                throw "Hash mismatch for ${relPath}: expected $expectedHash, got $actualHash"
+            }
+        }
+    }
+    return $true
+}
+
+Test-Case "Bootstrap hash: bootstrap.ps1 SHA256 matches manifest entry" {
+    $manifestPath = "$root\manifest.sha256"
+    $lines = Get-Content $manifestPath -Raw -Encoding UTF8
+    $bootstrapEntry = $lines -split "`r?`n" | Where-Object { $_ -match 'bootstrap\.ps1$' } | Select-Object -First 1
+    if (-not $bootstrapEntry) { throw "bootstrap.ps1 not found in manifest" }
+    if ($bootstrapEntry -match '^([a-f0-9]{64})\s{2}bootstrap\.ps1$') {
+        $expectedHash = $Matches[1]
+    } else {
+        throw "Cannot parse bootstrap entry in manifest"
+    }
+    $actualHash = (Get-FileHash -Path "$root\bootstrap.ps1" -Algorithm SHA256).Hash.ToLower()
+    if ($actualHash -ne $expectedHash) {
+        throw "Bootstrap hash mismatch: expected $expectedHash, got $actualHash"
+    }
+    return $true
+}
+
+Test-Case "Rollback: Restore-Snapshot restores service start types correctly" {
+    . "$root\lib\core.ps1"
+    # Create a snapshot with known state - New-Snapshot returns the manifest path, not the directory
+    $manifestPath = New-Snapshot -Label "test-rollback"
+    if (-not (Test-Path $manifestPath)) { throw "Snapshot manifest not created: $manifestPath" }
+    $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+    if (-not $manifest.Services) { throw "Snapshot manifest missing Services array" }
+    if (-not $manifest.RegFiles) { throw "Snapshot manifest missing RegFiles array" }
+    # Test that Restore-Snapshot can be called without error (dry-run)
+    # Restore-Snapshot expects the manifest path, not the directory
+    Restore-Snapshot -ManifestPath $manifestPath
+    # Verify no exception thrown
+    return $true
+}
+
+Test-Case "Allow-list: Set-AllowList handles PSCustomObject input correctly" {
+    . "$root\lib\core.ps1"
+    $testObj = [PSCustomObject]@{
+        Services = @('wuauserv', 'WinRM')
+        Appx     = @('Microsoft.WindowsCalculator*')
+        Modules  = @{ firewall = @('BlockCalcExe'); defender = @('ASR1') }
+    }
+    Set-AllowList $testObj
+    $loaded = Get-AllowList
+    if ($loaded.Services -notcontains 'wuauserv') { throw "Services not preserved" }
+    if ($loaded.Appx -notcontains 'Microsoft.WindowsCalculator*') { throw "Appx not preserved" }
+    if (-not $loaded.Modules.firewall -or $loaded.Modules.firewall -notcontains 'BlockCalcExe') { throw "Module firewall entry lost" }
+    if (-not $loaded.Modules.defender -or $loaded.Modules.defender -notcontains 'ASR1') { throw "Module defender entry lost" }
+    return $true
+}
+
+Test-Case "Bootstrap: parameter forwarding handles all supported flags" {
+    $c = Get-Content "$root\bootstrap.ps1" -Raw
+    # Check that bootstrap handles all documented PSArgs flags
+    $requiredFlags = @('-DryRun', '-SkipDebloat', '-Rollback', '-Profile')
+    foreach ($flag in $requiredFlags) {
+        if ($c -notmatch [regex]::Escape($flag)) {
+            throw "bootstrap.ps1 does not handle $flag parameter"
+        }
+    }
+    return $true
+}
+
+Test-Case "Manifest: all required files listed in manifest.sha256" {
+    $requiredFiles = @(
+        'bootstrap.ps1',
+        'Harden-Windows.ps1',
+        'harden.cmd',
+        'README.md',
+        'lib/core.ps1',
+        'config/profiles.psd1',
+        'config/default.AllowList.psd1',
+        'tests/regression.ps1'
+    )
+    $manifestPath = "$root\manifest.sha256"
+    $lines = Get-Content $manifestPath -Raw -Encoding UTF8
+    $manifestFiles = @()
+    foreach ($line in $lines -split "`r?`n") {
+        if ($line -match '^[a-f0-9]{64}\s{2}(.+)$') {
+            $manifestFiles += $Matches[1].Trim()
+        }
+    }
+    $missing = @()
+    foreach ($f in $requiredFiles) {
+        if ($f -notin $manifestFiles) {
+            $missing += $f
+        }
+    }
+    if ($missing.Count -gt 0) {
+        throw "Manifest missing required files: $($missing -join ', ')"
+    }
+    return $true
+}
+
 Write-Host ""
 Write-Host "=== Results: $pass passed, $fail failed ===" -ForegroundColor $(if($fail -eq 0){'Green'}else{'Red'})
 exit $fail

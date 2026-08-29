@@ -12,11 +12,17 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
     name: Create Release
     runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -103,3 +109,10 @@ jobs:
               }
           }
           Write-Host "All $($expected.Count) assets verified"
+
+      - name: Generate SLSA Provenance
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+        with:
+          base64-subjects: "${{ hashFiles('bootstrap.ps1') }} ${{ hashFiles('manifest.sha256') }} ${{ hashFiles('Harden-Windows.ps1') }} ${{ hashFiles('harden.cmd') }} ${{ hashFiles('README.md') }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
