@@ -35,12 +35,48 @@ jobs:
           }
           Write-Host "Tag format valid: $tag"
 
+      - name: Regenerate Manifest
+        shell: pwsh
+        run: |
+          $repoRoot = (Get-Item -Path "." -Verbose).FullName
+          $files = Get-ChildItem -Recurse -File | Where-Object { 
+              $_.Extension -in '.ps1','.psd1','.cmd','.md' -and 
+              $_.FullName -notmatch '\\.git\\' 
+          } | Sort-Object FullName
+          
+          $manifest = @()
+          foreach ($f in $files) {
+              $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
+              $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\','/')
+              $manifest += "$hash  $rel"
+          
+          $manifest | Set-Content manifest.sha256 -Encoding UTF8
+          Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
+          
+          # Show bootstrap hash for verification
+          $bootHash = (Get-FileHash -Path bootstrap.ps1 -Algorithm SHA256).Hash.ToLower()
+          Write-Host "bootstrap.ps1 SHA256: $bootHash"
+
+      - name: Commit Manifest Update
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.sha256
+          if (-not (git diff --cached --quiet)) {
+              git commit -m "chore: update manifest.sha256 for ${{ github.ref_name }}"
+              $repo = "https://x-access-token:${env:GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+              git push $repo
+          } else {
+              Write-Host "Manifest unchanged"
+          }
+
       - name: Run Regression Tests
         shell: pwsh
         run: |
           powershell -ExecutionPolicy Bypass -File tests/regression.ps1
-
-      - name: Regenerate Manifest
         shell: pwsh
         run: |
           $repoRoot = (Get-Item -Path "." -Verbose).FullName
