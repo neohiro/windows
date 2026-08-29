@@ -35,11 +35,6 @@ jobs:
           }
           Write-Host "Tag format valid: $tag"
 
-      - name: Run Regression Tests
-        shell: pwsh
-        run: |
-          powershell -ExecutionPolicy Bypass -File tests/regression.ps1
-
       - name: Regenerate Manifest
         shell: pwsh
         run: |
@@ -58,10 +53,6 @@ jobs:
           $manifest | Set-Content manifest.sha256 -Encoding UTF8
           Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
 
-          # Show bootstrap hash for verification
-          $bootHash = (Get-FileHash -Path bootstrap.ps1 -Algorithm SHA256).Hash.ToLower()
-          Write-Host "bootstrap.ps1 SHA256: $bootHash"
-
       - name: Commit Manifest Update
         shell: pwsh
         env:
@@ -72,13 +63,17 @@ jobs:
           git add manifest.sha256
           if (-not (git diff --cached --quiet)) {
               git commit -m "chore: update manifest.sha256 for ${{ github.ref_name }}"
-              # We are in detached HEAD (checked out tag). Push to the default branch.
               $defaultBranch = if ($env:GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH) { $env:GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH } else { 'main' }
               $repo = "https://x-access-token:${env:GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
               git push $repo "HEAD:refs/heads/$defaultBranch"
           } else {
               Write-Host "Manifest unchanged"
           }
+
+      - name: Run Regression Tests
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests/regression.ps1
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
