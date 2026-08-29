@@ -27,6 +27,10 @@ param(
 
     [switch]$AssumeYes,
 
+    [switch]$ConfirmImpact,
+
+    [switch]$ValidateAllowList,
+
     [hashtable]$AllowListOverride = @{},
 
     [string]$ModulePath = "$PSScriptRoot\modules",
@@ -45,6 +49,56 @@ if (-not (Test-Path Function:\Coalesce)) {
 
 # --- Bootstrap --------------------------------------------------------------
 . "$PSScriptRoot\lib\core.ps1"
+
+# --- Validate allow-list and exit --------------------------------------------
+# Runs even before admin check — no system modifications.
+$script:ConfigDir = "$env:ProgramData\HardenWindows"
+
+if ($ValidateAllowList) {
+    $profileData = Import-PowerShellDataFile -Path "$ConfigPath\profiles.psd1" -ErrorAction SilentlyContinue
+    $alFile = "$ConfigPath\default.AllowList.psd1"
+    $alData = Import-PowerShellDataFile -Path $alFile -ErrorAction SilentlyContinue
+    $runtimeAl = Get-AllowList
+
+    if ($alData) {
+        if ($alData.Services) {
+            $runtimeAl.Services = @((Coalesce $runtimeAl.Services @()) + @($alData.Services)) | Select-Object -Unique
+        }
+        if ($alData.Appx) {
+            $runtimeAl.Appx = @((Coalesce $runtimeAl.Appx @()) + @($alData.Appx)) | Select-Object -Unique
+        }
+        if ($alData.Modules) {
+            $modules = $runtimeAl.Modules
+            if ($null -eq $modules) { $modules = @{} }
+            if ($modules -isnot [hashtable]) {
+                $ht = @{}
+                foreach ($p in $modules.PSObject.Properties) { $ht[$p.Name] = @($p.Value) }
+                $modules = $ht
+            }
+            foreach ($mk in $alData.Modules.Keys) {
+                $existing = @($modules[$mk])
+                $modules[$mk] = @($existing + @($alData.Modules[$mk])) | Select-Object -Unique
+            }
+            $runtimeAl.Modules = $modules
+        }
+    }
+
+    $validated = Test-AllowListSchema -Data $runtimeAl
+    if ($validated.Ok) {
+        $svcCount = @($runtimeAl.Services).Count
+        $appxCount = @($runtimeAl.Appx).Count
+        $modKeys = if ($runtimeAl.Modules -is [hashtable]) { $runtimeAl.Modules.Keys.Count } else { 0 }
+        Write-Output "Allow-list is valid."
+        Write-Output "  Services : $svcCount"
+        Write-Output "  Appx     : $appxCount"
+        Write-Output "  Modules  : $modKeys"
+        exit 0
+    } else {
+        Write-Output "Allow-list has $($validated.Errors.Count) error(s):"
+        foreach ($e in $validated.Errors) { Write-Warning $e }
+        exit 1
+    }
+}
 
 if (-not (Test-IsAdmin)) {
     Invoke-SelfElevate @PSBoundParameters
@@ -154,11 +208,17 @@ if ($AllowListOverride.Appx) {
 $allAllowList = @($runtimeAl.Services | Where-Object { $_ -is [string] -and $_ })
 if ($null -ne $runtimeAl.Modules) {
     if ($runtimeAl.Modules -is [hashtable]) {
-        # Keys are module names, Values are string arrays — flatten both.
         $allAllowList += $runtimeAl.Modules.Keys
-        $allAllowList += $runtimeAl.Modules.Values | Where-Object { $_ -is [string] }
+        foreach ($v in $runtimeAl.Modules.Values) {
+            if ($v -is [string])      { $allAllowList += $v }
+            elseif ($v -is [array])    { $allAllowList += $v }
+        }
     } elseif ($runtimeAl.Modules.PSObject) {
-        $allAllowList += $runtimeAl.Modules.PSObject.Properties.Value | Where-Object { $_ -is [string] }
+        $allAllowList += $runtimeAl.Modules.PSObject.Properties.Name
+        $allAllowList += $runtimeAl.Modules.PSObject.Properties.Value | ForEach-Object {
+            if ($_ -is [string])      { $_ }
+            elseif ($_ -is [array])   { $_ }
+        }
     }
 }
 # Deduplicate so a name appearing in both Services and Modules is only listed once.
@@ -280,7 +340,11 @@ foreach ($modName in $selectedModules) {
     Write-Section "Module: $modName"
     if (Get-Command $fnName -ErrorAction SilentlyContinue) {
         try {
-            & $fnName -DryRun $DryRun -AllowList $allAllowList -AssumeYes:$AssumeYes
+            if ($modName -eq 'appx_debloater') {
+                & $fnName -DryRun $DryRun -AllowList $allAllowList -AssumeYes:$AssumeYes
+            } else {
+                & $fnName -DryRun $DryRun -AllowList $allAllowList -AssumeYes:$AssumeYes -ConfirmImpact:$ConfirmImpact
+            }
         } catch {
             Write-Warn "Module error [$modName]: $($_.Exception.Message)"
             Add-Change $modName 'module' '?' 'error' 'ERR'

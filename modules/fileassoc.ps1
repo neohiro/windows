@@ -6,24 +6,24 @@ $Assocs = @(
 )
 
 function Set-FileAssocSettings {
-    param([bool]$DryRun, [array]$AllowList, [switch]$AssumeYes)
+    param([bool]$DryRun, [array]$AllowList, [switch]$AssumeYes, [switch]$ConfirmImpact)
     Write-Section "File associations (ransomware mitigation)"
 
-    $do = { param($cmd) Invoke-Cmd -Cmd $cmd -DryRun $DryRun }
-
-    if ($AssumeYes) {
-        Write-Info "-AssumeYes set; re-associating script extensions to Notepad."
-    } else {
-        $resp = Invoke-TimedPrompt -Message "Re-associate .bat/.vbs/.js/.hta to Notepad? (skips execution - SAFE for most users, can break power-user workflow)" -Default 'N' -ValidChars @('Y','N','S')
-        if ($resp -ne 'Y') {
-            Write-Skip "File assoc change skipped by user."
+    # High-impact action: require typed YES even when -AssumeYes is set.
+    # Only -ConfirmImpact bypasses the gate. Re-associating .bat/.vbs/.js
+    # is irreversible (no snapshot undo) and breaks power-user workflows.
+    if (-not $ConfirmImpact) {
+        if (-not (Confirm-HighImpact -Action "Re-associate .bat/.vbs/.js/.jse/.hta/.wsf to Notepad" -Impact "Scripts of these types will no longer execute when double-clicked. Power-user workflow break. Cannot be undone by snapshot — only by editing the registry or running the script manually." -DryRun:$DryRun)) {
+            Write-Skip "File assoc change skipped (high-impact declined)."
             Add-Change $Module 'FileAssoc' 'unchanged' 'SKIP' 'SKIP'
             return
         }
+    } else {
+        Write-Info "-ConfirmImpact set; re-associating script extensions to Notepad."
     }
 
     foreach ($a in $Assocs) {
-        & $do "ftype $a=`"%SystemRoot%\system32\NOTEPAD.EXE`" `"%1`""
+        Invoke-Cmd -Cmd "ftype $a=`"%SystemRoot%\system32\NOTEPAD.EXE`" `"%1`"" -DryRun $DryRun
         Add-Change $Module "ftype:$a" 'executes' 'notepad' $(if($DryRun){'DRY'}else{'OK'})
     }
     Write-Pass "File associations locked down to Notepad."

@@ -26,7 +26,8 @@ param(
     [string]$Run     = 'Harden-Windows.ps1',
     [string[]]$PSArgs = @(),
     [switch]$NoElevate,
-    [switch]$SkipVerify
+    [switch]$SkipVerify,
+    [switch]$ConfirmImpact
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,10 +57,11 @@ if (-not $NoElevate -and -not $principal.IsInRole([Security.Principal.WindowsBui
 
     try {
         $argList = @('-NoProfile','-ExecutionPolicy','Bypass','-File', "`"$scriptPath`"", "-Source `"$Source`"")
-        if ($Profile)     { $argList += "-Profile `"$Profile`"" }
-        if ($Update)      { $argList += "-Update" }
-        if ($NoElevate)   { $argList += "-NoElevate" }
-        if ($SkipVerify)  { $argList += "-SkipVerify" }
+        if ($Profile)        { $argList += "-Profile `"$Profile`"" }
+        if ($Update)         { $argList += "-Update" }
+        if ($NoElevate)      { $argList += "-NoElevate" }
+        if ($SkipVerify)     { $argList += "-SkipVerify" }
+        if ($ConfirmImpact)  { $argList += "-ConfirmImpact" }
         $argList += '-PSArgs'
         $argList += $PSArgs
         Start-Process powershell.exe -Verb RunAs -ArgumentList $argList | Out-Null
@@ -226,6 +228,8 @@ while ($i -lt $PSArgs.Count) {
     if ($a -eq '-SkipDebloat')         { $forwardArgs.SkipDebloat = $true; $i++; continue }
     if ($a -eq '-Rollback')            { $forwardArgs.Rollback = $true; $i++; continue }
     if ($a -eq '-AssumeYes')           { $forwardArgs.AssumeYes = $true; $i++; continue }
+    if ($a -eq '-ConfirmImpact')       { $forwardArgs.ConfirmImpact = $true; $i++; continue }
+    if ($a -eq '-ValidateAllowList')   { $forwardArgs.ValidateAllowList = $true; $i++; continue }
     if ($a -eq '-Profile')             { $i++; if ($i -lt $PSArgs.Count) { $forwardArgs.Profile = $PSArgs[$i] }; $i++; continue }
     if ($a -match '^-Profile:(.+)$')  { $forwardArgs.Profile = $Matches[1]; $i++; continue }
     Write-Host "[ii] Unknown forwarded arg ignored: $a" -ForegroundColor DarkGray

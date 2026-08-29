@@ -47,7 +47,7 @@ function Get-ServiceCatalog {
 }
 
 function Set-ServiceDebloater {
-    param([bool]$DryRun, [array]$AllowList, [switch]$AssumeYes)
+    param([bool]$DryRun, [array]$AllowList, [switch]$AssumeYes, [switch]$ConfirmImpact)
     Write-Section "Service Debloater (interactive)"
 
     # Snapshot before changes. Skip in dry-run: snapshots call reg export for
@@ -147,6 +147,19 @@ function Set-ServiceDebloater {
 
         # Apply if changed
         if ($it.Action -ne $it.StartType.ToString()) {
+            # High-impact services require explicit typed confirmation even when -AssumeYes
+            # is set. Only -ConfirmImpact bypasses the gate. This prevents a CI / scripted
+            # run from accidentally disabling printing or breaking accessibility features.
+            $highImpactNames = @('PrintSpooler', 'TabletInputService', 'WbioSrvc')
+            if ($it.Name -in $highImpactNames) {
+                $action = "Disable $(([string]$it.Name)) (was $(([string]$it.StartType)))"
+                $ok = Confirm-HighImpact -Action $action -Impact $it.Impact -DryRun:$DryRun
+                if (-not $ok) {
+                    Add-Change $Module "service:$($it.Name)" $it.StartType 'user-declined' 'SKIP'
+                    $index++
+                    continue
+                }
+            }
             # Set-Service -StartupType accepts the enum or its string name.
             # Avoid casting to [ServiceStartupType] because the type is in
             # System.ServiceProcess.dll which may not be loaded on minimal

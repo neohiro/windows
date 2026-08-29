@@ -2,30 +2,28 @@
 $Module = 'usb_autoplay'
 
 function Set-UsbAutoplaySettings {
-    param([bool]$DryRun, [array]$AllowList, [switch]$AssumeYes)
+    param([bool]$DryRun, [array]$AllowList, [switch]$AssumeYes, [switch]$ConfirmImpact)
     Write-Section "USB, AutoPlay & print spooler"
 
-    $do = { param($cmd) Invoke-Cmd -Cmd $cmd -DryRun $DryRun }
-
-    # Autoplay off everywhere
-    & $do 'reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer" /v NoAutoplayfornonVolume /t REG_DWORD /d 1 /f'
-    & $do 'reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoDriveTypeAutoRun /t REG_DWORD /d 255 /f'
-    & $do 'reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoAutorun /t REG_DWORD /d 1 /f'
+    # Disable autoplay everywhere via registry
+    Invoke-Cmd -Cmd 'reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer" /v NoAutoplayfornonVolume /t REG_DWORD /d 1 /f' -DryRun $DryRun
+    Invoke-Cmd -Cmd 'reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoDriveTypeAutoRun /t REG_DWORD /d 255 /f' -DryRun $DryRun
+    Invoke-Cmd -Cmd 'reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoAutorun /t REG_DWORD /d 1 /f' -DryRun $DryRun
 
     Add-Change $Module 'AutoPlay' 'default' 'disabled' $(if($DryRun){'DRY'}else{'OK'})
 
-    # Print spooler - prompt if user wants it off
+    # Print Spooler: high-impact. Require typed "Yes"/"yes" unless -ConfirmImpact bypasses.
     if ($AllowList -contains 'KeepPrintSpooler') {
         Write-Skip "Print Spooler kept (allow-list)."
-    } elseif ($AssumeYes) {
-        Write-Warn "-AssumeYes set; DISABLING Print Spooler (impact: NO PRINTING. All printers, USB/network/PDF, will stop working until re-enabled)."
-        & $do 'powershell.exe -NoProfile -Command "Stop-Service Spooler -PassThru | Set-Service -StartupType Disabled"'
+    } elseif ($ConfirmImpact) {
+        Write-Info "-ConfirmImpact set; disabling Print Spooler without typed confirmation."
+        Invoke-Cmd -Cmd 'powershell.exe -NoProfile -Command "Stop-Service Spooler -PassThru | Set-Service -StartupType Disabled"' -DryRun $DryRun
         Add-Change $Module 'Spooler' 'auto' 'disabled' $(if($DryRun){'DRY'}else{'OK'})
         Write-Pass "Print Spooler disabled."
     } else {
-        $resp = Invoke-TimedPrompt -Message "Disable Print Spooler service? (PrintNightmare mitigation; impact: NO PRINTING. Use N if you have a printer)" -Default 'N' -ValidChars @('Y','N','S')
-        if ($resp -eq 'Y') {
-            & $do 'powershell.exe -NoProfile -Command "Stop-Service Spooler -PassThru | Set-Service -StartupType Disabled"'
+        $ok = Confirm-HighImpact -Action "Disable Print Spooler service" -Impact "NO PRINTING. All printers (USB, network, PDF) will stop working until service is re-enabled with: Set-Service Spooler -StartupType Automatic; Start-Service Spooler" -DryRun $DryRun
+        if ($ok) {
+            Invoke-Cmd -Cmd 'powershell.exe -NoProfile -Command "Stop-Service Spooler -PassThru | Set-Service -StartupType Disabled"' -DryRun $DryRun
             Add-Change $Module 'Spooler' 'auto' 'disabled' $(if($DryRun){'DRY'}else{'OK'})
             Write-Pass "Print Spooler disabled."
         } else {
