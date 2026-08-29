@@ -1214,9 +1214,9 @@ Test-Case "Restore-Snapshot wraps Get-Service in try/catch" {
 
     Test-Case "manifest references all new + changed files" {
         $manifest = Get-Content "$root\manifest.sha256" -Raw
-        $required = @('README.md', 'lib\core.ps1', 'Harden-Windows.ps1', 'tests\regression.ps1')
+        $required = @('README.md', 'lib.core.ps1', 'Harden-Windows.ps1', 'tests.regression.ps1')
         foreach ($r in $required) {
-            if ($manifest -notmatch [regex]::Escape($r)) {
+            if ($manifest -notmatch $r) {
                 throw "manifest.sha256 missing entry for $r"
             }
         }
