@@ -30,6 +30,10 @@ account. Highlights:
 - 🐧 **[ubuntu](https://github.com/neohiro/ubuntu)** — Linux post-install hardening (firewall, encrypted DNS, Tor)
 - 🌐 **[Cripple-NetStrip](https://github.com/neohiro/Cripple-NetStrip)** — Network hardening & encrypted DNS
 
+### 🎬 Media
+
+Video deep-dives on **[YouTube @FrenzyPenguinMedia](https://www.youtube.com/FrenzyPenguinMedia?sub_confirmation=1)** — security hardening deep-dives, exploit mitigation tutorials, privacy engineering.
+
 ### 🤝 Community
 
 Bugs go through structured **issue forms** on each repository · vulnerabilities
@@ -41,4 +45,8 @@ via the **Security tab** · questions in each repo's **Discussions**.
   <a href="https://github.com/sponsors/neohiro" rel="noopener noreferrer nofollow no-referrer"><img src="https://img.shields.io/badge/Sponsor%20on%20GitHub-%E2%9D%A4-EA4AAA?logo=githubsponsors&style=for-the-badge" alt="GitHub Sponsors"></a>&nbsp;&nbsp;
   <a href="https://www.patreon.com/frenzypenguin_media" rel="noopener noreferrer nofollow no-referrer"><img src="https://img.shields.io/badge/Patreon-frenzypenguin__media-F96854?logo=patreon&style=for-the-badge" alt="Patreon"></a>&nbsp;&nbsp;
   <a href="https://linktr.ee/frenzypenguin.media" rel="noopener noreferrer nofollow no-referrer"><img src="https://img.shields.io/badge/Links-frenzypenguin.media-2BE295?logo=linktree&logoColor=white&style=for-the-badge" alt="Linktree"></a>
+</p>
+
+<p align="center">
+  <img src="https://github-readme-stats.vercel.app/api?username=neohiro&show_icons=true&theme=dark&hide_border=true&count_private=true" alt="neohiro stats">
 </p>
