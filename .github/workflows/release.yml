@@ -67,8 +67,11 @@ jobs:
           git add manifest.sha256
           if (-not (git diff --cached --quiet)) {
               git commit -m "chore: update manifest.sha256 for ${{ github.ref_name }}"
+              # We are in detached HEAD (checked out tag). Push to the default branch.
+              $defaultBranch = '${{ github.event.repository.default_branch }}'
+              if ([string]::IsNullOrEmpty($defaultBranch)) { $defaultBranch = 'main' }
               $repo = "https://x-access-token:${env:GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
-              git push $repo
+              git push $repo "HEAD:refs/heads/$defaultBranch"
           } else {
               Write-Host "Manifest unchanged"
           }
