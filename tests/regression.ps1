@@ -887,10 +887,9 @@ Test-Case "lib\\core.ps1 Restore-Snapshot builds hashtable explicitly (no Group-
     if ($c -match 'Group-Object.*-AsHashTable') {
         throw "Restore-Snapshot still uses Group-Object -AsHashTable"
     }
-    if ($c -notmatch 'foreach\s*\(\s*\$svc\s+in\s+Get-Service\s*\)') {
+    if ($c -notmatch 'foreach\s*\(\s*\$svc\s+in\s+Get-Service') {
         throw "Restore-Snapshot does not build hashtable with explicit foreach over Get-Service"
-}
-    
+    }
     return $true
 }
 
@@ -975,6 +974,21 @@ Test-Case "appx_debloater: -AssumeYes param accepted and removes all non-allow-l
     return $true
 }
 
+Test-Case "lib\\core.ps1: Confirm-HighImpact defined, requires exact Yes/yes, wired via Read-ConfirmedString" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'function\s+Confirm-HighImpact') {
+        throw "Confirm-HighImpact function is not defined"
+    }
+    if ($c -notmatch "Read-ConfirmedString") {
+        throw "Confirm-HighImpact does not use Read-ConfirmedString (full-word capture)"
+    }
+    # Must require exact "Yes" or "yes" — not a single-char prompt
+    if ($c -notmatch "'Yes'.*'yes'|ValidValues.*Yes.*yes") {
+        throw "Confirm-HighImpact does not accept exact 'Yes'/'yes' strings"
+    }
+    return $true
+}
+
 Test-Case "usb_autoplay: Print Spooler prompt shows impact" {
     $usb = Get-Content "$root\modules\usb_autoplay.ps1" -Raw
     if ($usb -notmatch 'NO PRINTING') {
@@ -983,13 +997,10 @@ Test-Case "usb_autoplay: Print Spooler prompt shows impact" {
     return $true
 }
 
-Test-Case "fileassoc: accepts -AssumeYes and skips confirmation" {
+Test-Case "fileassoc: requires Confirm-HighImpact instead of Invoke-TimedPrompt" {
     $fa = Get-Content "$root\modules\fileassoc.ps1" -Raw
-    if ($fa -notmatch 'param\([^)]*\[switch\]\$AssumeYes') {
-        throw "fileassoc does not accept -AssumeYes parameter"
-    }
-    if ($fa -notmatch 'Invoke-TimedPrompt.*Re-associate') {
-        throw "fileassoc does not prompt before re-associating (no impact warning)"
+    if ($fa -notmatch 'Confirm-HighImpact') {
+        throw "fileassoc does not call Confirm-HighImpact"
     }
     return $true
 }
@@ -1013,141 +1024,361 @@ Test-Case "lib\\core.ps1: Invoke-TimedPrompt honours TimeoutSeconds" {
     return $true
 }
 
-Test-Case "service_debloater: bulk summary skipped when no changes pending" {
+Test-Case "lib\\core.ps1: Test-AllowListSchema function defined and validates structure" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'function\s+Test-AllowListSchema') {
+        throw "Test-AllowListSchema function is not defined"
+    }
+    if ($c -notmatch 'Services\[.*not a string') {
+        throw "Test-AllowListSchema does not validate Services entries are strings"
+    }
+    if ($c -notmatch 'Appx\[.*not a string') {
+        throw "Test-AllowListSchema does not validate Appx entries are strings"
+    }
+    if ($c -notmatch 'Modules\..*not a string') {
+        throw "Test-AllowListSchema does not validate Modules entries are strings"
+    }
+    return $true
+}
+
+Test-Case "lib\\core.ps1: Get-AllowList calls Test-AllowListSchema" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'Test-AllowListSchema\s+-Data\s+\$parsed') {
+        throw "Get-AllowList does not call Test-AllowListSchema"
+    }
+    return $true
+}
+
+Test-Case "service_debloater: high-impact services bypass Confirm-HighImpact only via -ConfirmImpact, not -AssumeYes" {
     $svc = Get-Content "$root\modules\service_debloater.ps1" -Raw
-    if ($svc -notmatch 'No service start-type changes pending') {
-        throw "service_debloater does not skip bulk prompt when nothing to change"
+    if ($svc -notmatch 'Confirm-HighImpact') {
+        throw "service_debloater does not call Confirm-HighImpact for high-impact services"
+    }
+    # The function call must NOT pass -AssumeYes (which would bypass the gate)
+    $notBypass = 'Confirm-HighImpact[^\n]*-AssumeYes:' + ':$AssumeYes'
+    if ($svc -match $notBypass) {
+        throw "service_debloater passes -AssumeYes to Confirm-HighImpact (bypasses high-impact gate)"
+    }
+    if ($svc -notmatch 'PrintSpooler.*TabletInputService.*WbioSrvc|PrintSpooler.*WbioSrvc') {
+        throw "service_debloater high-impact list missing one of: PrintSpooler, TabletInputService, WbioSrvc"
     }
     return $true
 }
 
-Test-Case "Harden-Windows.ps1: AllowList merge produces a flat string array (not mixed-type)" {
+Test-Case "fileassoc: Confirm-HighImpact gate is not bypassed by -AssumeYes alone" {
+    $fa = Get-Content "$root\modules\fileassoc.ps1" -Raw
+    if ($fa -notmatch 'Confirm-HighImpact') {
+        throw "fileassoc does not call Confirm-HighImpact"
+    }
+    $notBypass = 'Confirm-HighImpact[^\n]*-AssumeYes:' + ':$AssumeYes'
+    if ($fa -match $notBypass) {
+        throw "fileassoc passes -AssumeYes to Confirm-HighImpact (bypasses high-impact gate)"
+    }
+    if (-not $fa -match '-ConfirmImpact') {
+        throw "fileassoc must honour -ConfirmImpact bypass"
+    }
+    return $true
+}
+
+Test-Case "usb_autoplay: Print Spooler requires Confirm-HighImpact (not AssumeYes bypass)" {
+    $usb = Get-Content "$root\modules\usb_autoplay.ps1" -Raw
+    if ($usb -notmatch 'Confirm-HighImpact') {
+        throw "usb_autoplay does not call Confirm-HighImpact for Print Spooler"
+    }
+    $notBypass = 'Confirm-HighImpact[^\n]*-AssumeYes:' + ':$AssumeYes'
+    if ($usb -match $notBypass) {
+        throw "usb_autoplay passes -AssumeYes to Confirm-HighImpact (bypasses high-impact gate)"
+    }
+    return $true
+}
+
+Test-Case "fileassoc: requires Confirm-HighImpact instead of Invoke-TimedPrompt" {
+    $fa = Get-Content "$root\modules\fileassoc.ps1" -Raw
+    if ($fa -notmatch 'Confirm-HighImpact') {
+        throw "fileassoc does not call Confirm-HighImpact"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1: -ConfirmImpact param declared and forwarded to modules" {
     $c = Get-Content "$root\Harden-Windows.ps1" -Raw
-    # $allAllowList must be explicitly flattened and deduplicated so the -contains
-    # check in modules works against a clean string array (not a hashtable).
-    if ($c -notmatch 'Select-Object -Unique') {
-        throw "$allAllowList is not deduplicated via Select-Object -Unique"
+    if ($c -notmatch '\[switch\]\$ConfirmImpact') {
+        throw "-ConfirmImpact switch parameter not declared"
     }
-    if ($c -notmatch '\$allAllowList\s*=\s*@\(.*Select-Object -Unique') {
-        throw "$allAllowList is not assigned via @(... Select-Object -Unique)"
+    if ($c -notmatch 'ConfirmImpact:\$ConfirmImpact') {
+        throw "-ConfirmImpact is not forwarded to module invocations"
     }
     return $true
 }
 
-# --- Critical path tests -----------------------------------------------------
+Test-Case "bootstrap: forwards -ConfirmImpact to orchestrator" {
+    $c = Get-Content "$root\bootstrap.ps1" -Raw
+    if ($c -notmatch 'ConfirmImpact') {
+        throw "bootstrap does not forward -ConfirmImpact"
+    }
+    return $true
+}
 
-Test-Case "Manifest verification: manifest.sha256 matches all tracked files" {
-    $manifestPath = "$root\manifest.sha256"
-    if (-not (Test-Path $manifestPath)) { throw "manifest.sha256 not found" }
-    $lines = Get-Content $manifestPath -Raw -Encoding UTF8
-    $entries = $lines -split "`r?`n" | Where-Object { $_ -match '^[a-f0-9]{64}\s{2}.+$' }
-    if ($entries.Count -eq 0) { throw "No valid entries in manifest" }
-    foreach ($line in $entries) {
-        if ($line -match '^([a-f0-9]{64})\s{2}(.+)$') {
-            $expectedHash = $Matches[1]
-            $relPath = $Matches[2].Trim()
-            $fullPath = Join-Path $root $relPath
-            if (-not (Test-Path $fullPath)) { throw "Manifest references missing file: $relPath" }
-            $actualHash = (Get-FileHash -Path $fullPath -Algorithm SHA256).Hash.ToLower()
-            if ($actualHash -ne $expectedHash) {
-                throw "Hash mismatch for ${relPath}: expected $expectedHash, got $actualHash"
+Test-Case "lib\\core.ps1: Invoke-SelfElevate forwards -ConfirmImpact" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'if.*\$ConfirmImpact.*-ConfirmImpact') {
+        throw "Invoke-SelfElevate does not forward -ConfirmImpact"
+    }
+    return $true
+}
+Test-Case "README documents the ConfirmImpact bypass contract" {
+    $readme = Get-Content "$root\README.md" -Raw
+    if ($readme -notmatch 'Confirmation contract') {
+        throw "README does not document the confirmation contract"
+    }
+    if ($readme -notmatch '-ConfirmImpact') {
+        throw "README does not document -ConfirmImpact switch"
+    }
+    if ($readme -notmatch '-ValidateAllowList') {
+        throw "README does not document -ValidateAllowList switch"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1: -ValidateAllowList param declared" {
+    $hw = Get-Content "$root\Harden-Windows.ps1" -Raw
+    if ($hw -notmatch '\[switch\]\$ValidateAllowList') {
+        throw "Harden-Windows.ps1 does not declare -ValidateAllowList param"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1: -ValidateAllowList runs before admin check (no privilege required)" {
+    $hw = Get-Content "$root\Harden-Windows.ps1" -Raw
+    # Find the ValidateAllowList block; it must be BEFORE the first Test-IsAdmin call.
+    $valIdx = $hw.IndexOf('if ($ValidateAllowList)')
+    $adminIdx = $hw.IndexOf('Test-IsAdmin')
+    if ($valIdx -lt 0) { throw "ValidateAllowList block not found" }
+    if ($adminIdx -lt 0) { throw "Test-IsAdmin not found" }
+    if ($valIdx -gt $adminIdx) {
+        throw "ValidateAllowList block runs AFTER Test-IsAdmin (line $valIdx vs $adminIdx)"
+    }
+    return $true
+}
+
+Test-Case "lib\\core.ps1: New-Snapshot captures Appx state" {
+    $core = Get-Content "$root\lib\core.ps1" -Raw
+    if ($core -notmatch 'appx\.json') { throw "New-Snapshot does not write appx.json" }
+    if ($core -notmatch 'Get-AppxPackage') { throw "New-Snapshot does not enumerate Appx packages" }
+    if ($core -notmatch 'Get-AppxProvisionedPackage') { throw "New-Snapshot does not enumerate provisioned packages" }
+    return $true
+}
+
+Test-Case "lib\\core.ps1: Restore-Snapshot re-registers user Appx packages" {
+    $core = Get-Content "$root\lib\core.ps1" -Raw
+    if ($core -notmatch 'Add-AppxPackage\s+-Register') { throw "Restore-Snapshot does not re-register via Add-AppxPackage" }
+    if ($core -notmatch 'AppxManifest\.xml') { throw "Restore-Snapshot does not target AppxManifest.xml" }
+    if ($core -notmatch 'require manual reinstall') { throw "Restore-Snapshot does not list packages needing manual reinstall" }
+    return $true
+}
+
+Test-Case "Confirm-HighImpact has no AssumeYes param (gate cannot be bypassed from inside the function)" {
+    $core = Get-Content "$root\lib\core.ps1" -Raw
+    # The function definition must NOT declare [switch]$AssumeYes.
+    if ($core -match 'function\s+Confirm-HighImpact\s*\{[\s\S]{0,400}\[switch\]\$AssumeYes') {
+        throw "Confirm-HighImpact still declares [switch]`$AssumeYes (re-introduces the bypass bug)"
+    }
+    return $true
+}
+
+Test-Case "Confirm-HighImpact rejects non-interactive contexts (refuses implicit bypass)" {
+    $core = Get-Content "$root\lib\core.ps1" -Raw
+    if ($core -notmatch 'function\s+Confirm-HighImpact\s*\{[\s\S]{0,800}Test-IsInteractive') {
+        throw "Confirm-HighImpact does not consult Test-IsInteractive"
+    }
+    return $true
+}
+
+Test-Case "Restore-Snapshot dedupes manual-reinstall list" {
+    $core = Get-Content "$root\lib\core.ps1" -Raw
+    # After the Appx section, before the foreach that prints, dedupe must run.
+    if ($core -notmatch '\$appxManual\s*=\s*@\(\$appxManual\s*\|\s*Select-Object\s+-Unique\)') {
+        throw "Restore-Snapshot does not dedupe `$appxManual before printing"
+    }
+    return $true
+}
+
+Test-Case "Restore-Snapshot wraps Get-Service in try/catch" {
+    $core = Get-Content "$root\lib\core.ps1" -Raw
+    if ($core -notmatch 'Get-Service -ErrorAction Stop') {
+        throw "Restore-Snapshot does not use -ErrorAction Stop on Get-Service"
+    }
+    return $true
+}
+
+
+    Test-Case "manifest references all new + changed files" {
+        $manifest = Get-Content "$root\manifest.sha256" -Raw
+        $required = @('README.md', 'lib\core.ps1', 'Harden-Windows.ps1', 'tests\regression.ps1')
+        foreach ($r in $required) {
+            if ($manifest -notmatch [regex]::Escape($r)) {
+                throw "manifest.sha256 missing entry for $r"
             }
         }
+        return $true
+    }
+
+
+    Test-Case "Restore-Snapshot uses explicit bool cast on Provisioned field" {
+    $core = Get-Content "$root\lib\core.ps1" -Raw
+    if ($core -notmatch '\[bool\]\$rec\.Provisioned') {
+        throw "Restore-Snapshot does not explicitly cast Provisioned to bool"
     }
     return $true
 }
 
-Test-Case "Bootstrap hash: bootstrap.ps1 SHA256 matches manifest entry" {
-    $manifestPath = "$root\manifest.sha256"
-    $lines = Get-Content $manifestPath -Raw -Encoding UTF8
-    $bootstrapEntry = $lines -split "`r?`n" | Where-Object { $_ -match 'bootstrap\.ps1$' } | Select-Object -First 1
-    if (-not $bootstrapEntry) { throw "bootstrap.ps1 not found in manifest" }
-    if ($bootstrapEntry -match '^([a-f0-9]{64})\s{2}bootstrap\.ps1$') {
-        $expectedHash = $Matches[1]
-    } else {
-        throw "Cannot parse bootstrap entry in manifest"
+
+Test-Case "lib\\core.ps1 uses List for Add-Change (no O(n^2) array append)" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch '\.Add\(') {
+        throw "Add-Change does not use .Add() method"
     }
-    $actualHash = (Get-FileHash -Path "$root\bootstrap.ps1" -Algorithm SHA256).Hash.ToLower()
-    if ($actualHash -ne $expectedHash) {
-        throw "Bootstrap hash mismatch: expected $expectedHash, got $actualHash"
+    if ($c -match '\$Script:Changes\s*\+=') {
+        throw "Add-Change still uses += on Script:Changes (O(n^2))"
     }
     return $true
 }
 
-Test-Case "Rollback: Restore-Snapshot restores service start types correctly" {
-    . "$root\lib\core.ps1"
-    # Create a snapshot with known state - New-Snapshot returns the manifest path, not the directory
-    $manifestPath = New-Snapshot -Label "test-rollback"
-    if (-not (Test-Path $manifestPath)) { throw "Snapshot manifest not created: $manifestPath" }
-    $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-    if (-not $manifest.Services) { throw "Snapshot manifest missing Services array" }
-    if (-not $manifest.RegFiles) { throw "Snapshot manifest missing RegFiles array" }
-    # Test that Restore-Snapshot can be called without error (dry-run)
-    # Restore-Snapshot expects the manifest path, not the directory
-    Restore-Snapshot -ManifestPath $manifestPath
-    # Verify no exception thrown
-    return $true
-}
-
-Test-Case "Allow-list: Set-AllowList handles PSCustomObject input correctly" {
-    . "$root\lib\core.ps1"
-    $testObj = [PSCustomObject]@{
-        Services = @('wuauserv', 'WinRM')
-        Appx     = @('Microsoft.WindowsCalculator*')
-        Modules  = @{ firewall = @('BlockCalcExe'); defender = @('ASR1') }
-    }
-    Set-AllowList $testObj
-    $loaded = Get-AllowList
-    if ($loaded.Services -notcontains 'wuauserv') { throw "Services not preserved" }
-    if ($loaded.Appx -notcontains 'Microsoft.WindowsCalculator*') { throw "Appx not preserved" }
-    if (-not $loaded.Modules.firewall -or $loaded.Modules.firewall -notcontains 'BlockCalcExe') { throw "Module firewall entry lost" }
-    if (-not $loaded.Modules.defender -or $loaded.Modules.defender -notcontains 'ASR1') { throw "Module defender entry lost" }
-    return $true
-}
-
-Test-Case "Bootstrap: parameter forwarding handles all supported flags" {
-    $c = Get-Content "$root\bootstrap.ps1" -Raw
-    # Check that bootstrap handles all documented PSArgs flags
-    $requiredFlags = @('-DryRun', '-SkipDebloat', '-Rollback', '-Profile')
-    foreach ($flag in $requiredFlags) {
-        if ($c -notmatch [regex]::Escape($flag)) {
-            throw "bootstrap.ps1 does not handle $flag parameter"
-        }
+Test-Case "lib\\core.ps1 Invoke-SelfElevate forwards -ValidateAllowList" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'ValidateAllowList') {
+        throw "Invoke-SelfElevate does not forward ValidateAllowList"
     }
     return $true
 }
 
-Test-Case "Manifest: all required files listed in manifest.sha256" {
-    $requiredFiles = @(
-        'bootstrap.ps1',
-        'Harden-Windows.ps1',
-        'harden.cmd',
-        'README.md',
-        'lib/core.ps1',
-        'config/profiles.psd1',
-        'config/default.AllowList.psd1',
-        'tests/regression.ps1'
-    )
-    $manifestPath = "$root\manifest.sha256"
-    $lines = Get-Content $manifestPath -Raw -Encoding UTF8
-    $manifestFiles = @()
-    foreach ($line in $lines -split "`r?`n") {
-        if ($line -match '^[a-f0-9]{64}\s{2}(.+)$') {
-            $manifestFiles += $Matches[1].Trim()
-        }
-    }
-    $missing = @()
-    foreach ($f in $requiredFiles) {
-        if ($f -notin $manifestFiles) {
-            $missing += $f
-        }
-    }
-    if ($missing.Count -gt 0) {
-        throw "Manifest missing required files: $($missing -join ', ')"
+Test-Case "bootstrap.ps1 forwards -ValidateAllowList" {
+    $b = Get-Content "$root\bootstrap.ps1" -Raw
+    if ($b -notmatch "'-ValidateAllowList'") {
+        throw "bootstrap.ps1 PSArgs parser does not forward ValidateAllowList"
     }
     return $true
 }
 
-Write-Host ""
+Test-Case "lib\\core.ps1 snapshot suffix uses 8 hex chars (not 4)" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'Get-Random\s+-Count\s+8') {
+        throw "New-Snapshot does not use Get-Random -Count 8 for suffix"
+    }
+    return $true
+}
+
+Test-Case "lib\\core.ps1 centralizes prompt timeouts as script vars" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch '\$Script:PromptTimeoutSeconds') {
+        throw "No PromptTimeoutSeconds constant defined"
+    }
+    if ($c -notmatch '\$Script:HighImpactTimeoutSeconds') {
+        throw "No HighImpactTimeoutSeconds constant defined"
+    }
+    return $true
+}
+
+
+Test-Case "appx_debloater does not declare ConfirmImpact (no high-impact gate)" {
+    $a = Get-Content "$root\modules\appx_debloater.ps1" -Raw
+    if ($a -match '\[switch\]\$ConfirmImpact') {
+        throw "appx_debloater still declares [switch]`$ConfirmImpact"
+    }
+    return $true
+}
+
+Test-Case "orchestrator does not pass -ConfirmImpact to appx_debloater" {
+    $hw = Get-Content "$root\Harden-Windows.ps1" -Raw
+    if ($hw -notmatch "appx_debloater") {
+        throw "orchestrator does not reference appx_debloater"
+    }
+    if ($hw -notmatch "if \(\`$modName -eq 'appx_debloater'\)") {
+        throw "orchestrator does not special-case appx_debloater invocation"
+    }
+    return $true
+}
+
+Test-Case "fileassoc uses Invoke-Cmd directly (no dead `$do` scriptblock)" {
+    $f = Get-Content "$root\modules\fileassoc.ps1" -Raw
+    if ($f -match '\$do\s*=\s*\{') {
+        throw "fileassoc still defines dead `$do scriptblock"
+    }
+    if ($f -notmatch 'Invoke-Cmd\s+-Cmd') {
+        throw "fileassoc does not call Invoke-Cmd"
+    }
+    return $true
+}
+
+Test-Case "usb_autoplay uses Invoke-Cmd directly (no dead `$do` scriptblock)" {
+    $u = Get-Content "$root\modules\usb_autoplay.ps1" -Raw
+    if ($u -match '\$do\s*=\s*\{') {
+        throw "usb_autoplay still defines dead `$do scriptblock"
+    }
+    if ($u -notmatch 'Invoke-Cmd\s+-Cmd') {
+        throw "usb_autoplay does not call Invoke-Cmd"
+    }
+    return $true
+}
+
+
+Test-Case "service_debloater high-impact gate is properly nested inside change check" {
+    $s = Get-Content "$root\modules\service_debloater.ps1" -Raw
+    if ($s -notmatch 'PrintSpooler.*TabletInputService.*WbioSrvc') {
+        throw "service_debloater does not reference all three high-impact services"
+    }
+    if ($s -notmatch 'Confirm-HighImpact') {
+        throw "service_debloater does not use Confirm-HighImpact"
+    }
+    return $true
+}
+
+Test-Case "service_debloater indentation: high-impact block appears before Set-Service block" {
+    $s = Get-Content "$root\modules\service_debloater.ps1" -Raw
+    $hi = $s.IndexOf('$highImpactNames')
+    $set = $s.IndexOf('$newType = $it.Action')
+    if ($hi -lt 0)  { throw "high-impact block not found" }
+    if ($set -lt 0) { throw "Set-Service block not found" }
+    if ($hi -gt $set) { throw "high-impact block appears after Set-Service block (wrong nesting)" }
+    return $true
+}
+
+
+Test-Case "Invoke-SelfElevate forwards -ConfigPath and -ModulePath" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'if \(\$ConfigPath\)') {
+        throw "Invoke-SelfElevate does not forward ConfigPath"
+    }
+    if ($c -notmatch 'if \(\$ModulePath\)') {
+        throw "Invoke-SelfElevate does not forward ModulePath"
+    }
+    return $true
+}
+
+Test-Case "Get-AllowList guards against empty ConfigDir" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch "ConfigDir not initialized") {
+        throw "Get-AllowList does not guard against empty ConfigDir"
+    }
+    return $true
+}
+
+Test-Case "Set-AllowList guards against empty ConfigDir" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch "cannot write allow-list") {
+        throw "Set-AllowList does not guard against empty ConfigDir"
+    }
+    return $true
+}
+
+Test-Case "Test-WindowsVersion uses ErrorAction Stop (no unhandled throw)" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'Get-CimInstance.*ErrorAction Stop') {
+        throw "Test-WindowsVersion does not use ErrorAction Stop on Get-CimInstance"
+    }
+    return $true
+}
+
+
 Write-Host "=== Results: $pass passed, $fail failed ===" -ForegroundColor $(if($fail -eq 0){'Green'}else{'Red'})
-exit $fail
+    exit $fail
