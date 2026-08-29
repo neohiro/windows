@@ -1,24 +1,33 @@
-# Transient state and logs created at runtime
-$env:ProgramData\HardenWindows\
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Snapshot and rollback artifacts created by lib/core.ps1
-*.snap/
-*.snap
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.spec
 
-# Transcript files written by Start-Transcript
-*.transcript.txt
+# Virtual environments
+.env
+.venv
+env/
+venv/
 
-# OS noise
-Thumbs.db
+# PyInstaller
+*.manifest
+
+# Logs & runtime artifacts
+*.log
+boot_log.txt
+
+# OS junk
 .DS_Store
-Desktop.ini
+Thumbs.db
+desktop.ini
 
-# Editor files
-*.swp
-*.swo
+# Editors
 .vscode/
 .idea/
-
-# Build output
-dist/
-out/
+*.swp

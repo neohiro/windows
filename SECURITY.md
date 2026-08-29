@@ -1,74 +1,21 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+Only the latest release available on the [Releases](../../releases) page is supported with security updates.
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-**Do not open a public issue** for security vulnerabilities.
+Please report security issues **privately**:
 
-Instead, email **security@neohiro.dev** (or open a [private security advisory](https://github.com/neohiro/windows/security/advisories/new)) with:
+1. Go to the **Security** tab of this repository.
+2. Click **Report a vulnerability** (private vulnerability reporting).
+3. Describe the issue, impact, and steps to reproduce.
 
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Suggested fix (if any)
+Do **not** open a public issue for anything you believe is exploitable.
 
-We aim to:
-- Acknowledge within 48 hours
-- Provide initial assessment within 7 days
-- Release a fix within 30 days (coordinated disclosure)
+You can expect an initial response within 7 days. Please allow a reasonable time for a fix before any public disclosure.
 
-## Security Model
+## Hardening notes
 
-### Bootstrap Integrity
-- All files verified via `manifest.sha256` (26-file SHA-256 manifest)
-- Bootstrap downloads manifest first, then verifies each file
-- HTML/404 detection prevents error-page injection
-- `-SkipVerify` flag explicitly opts out (not default)
-
-### Execution Safety
-- Dry-run mode (`-DryRun`) previews all changes without writing
-- Interactive prompts default to safe options (15s timeout)
-- Rollback restores registry + service state from snapshot
-- No `Invoke-Expression` in any module (static analysis verified)
-
-### Allow-List Defense
-- User-controlled exemptions via `%ProgramData%\HardenWindows\Config\allowlist.json`
-- Source-controlled defaults in `config/default.AllowList.psd1`
-- CLI override: `-AllowListOverride @{ Services=@('wuauserv') }`
-
-### Privilege Handling
-- Self-elevation via UAC (standard Windows mechanism)
-- No persistent elevated services or scheduled tasks
-- Runs once, writes logs to `%ProgramData%\HardenWindows\Logs\`
-
-## Supply Chain
-
-- GitHub Actions CI runs regression suite on every push
-- CodeQL security analysis weekly + on release
-- Release artifacts signed via GitHub Attestations (SLSA L1)
-- Dependabot enabled for GitHub Actions dependencies
-
-## Threat Model
-
-| Threat | Mitigation |
-|--------|------------|
-| Malicious bootstrap download | SHA-256 manifest verification, HTTPS only |
-| Compromised release asset | GitHub Attestations, tag protection rules |
-| Malicious module code | Static analysis (no IEX), regression tests |
-| Unintended system changes | Dry-run default, safe prompts, rollback |
-| Persistence/backdoor | No background services, one-shot execution |
-
-## Hardening Scope
-
-This tool **applies** security settings. It does **not**:
-- Install kernel drivers
-- Modify boot configuration (except BitLocker key protector check)
-- Disable Windows Update (wuauserv is allow-listed by default)
-- Replace system binaries
-- Require persistent background components
+This tool intentionally modifies system or network configuration. Always review what will be applied, keep backups/restoration points, and test on non-critical systems first.
