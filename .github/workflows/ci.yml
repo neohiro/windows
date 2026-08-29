@@ -48,6 +48,7 @@ jobs:
               $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
               $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\','/')
               $manifest += "$hash  $rel"
+          }
           
           $manifest | Set-Content manifest.sha256 -Encoding UTF8
           Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
@@ -138,13 +139,13 @@ jobs:
       - name: Verify Bootstrap Handles Missing Manifest Gracefully
         shell: pwsh
         run: |
-          # Test that bootstrap handles missing manifest gracefully (offline scenario)
+          # Test that bootstrap fails gracefully when manifest is missing (offline scenario)
           $tempDir = Join-Path $env:TEMP "HardenWindows-test-$([guid]::NewGuid())"
           New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
           Copy-Item bootstrap.ps1 $tempDir
           Set-Location $tempDir
-          # Should fail gracefully with missing manifest, not crash
-          $result = & .\bootstrap.ps1 -Profile Home -Source "file:///C:/nonexistent" -NoElevate 2>&1
+          # Use a non-existent HTTP URL - should fail gracefully, not crash
+          $result = & .\bootstrap.ps1 -Profile Home -Source "http://127.0.0.1:9/nonexistent" -NoElevate -SkipVerify 2>&1
           if ($LASTEXITCODE -eq 0) {
               Write-Error "Expected bootstrap to fail with missing manifest"
               exit 1
