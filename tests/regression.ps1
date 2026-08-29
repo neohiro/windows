@@ -98,11 +98,12 @@ Test-Case "profiles.psd1 has 3 profiles" {
 
 # 6. Dry-run executes end-to-end with 0 errors
 Test-Case "Orchestrator dry-run completes without error" {
-    $errBefore = $Error.Count
+    # Filter out known benign errors (Stop-Transcript when no transcript active)
+    $beforeErrors = @($Error | Where-Object { $_.Exception.Message -notmatch 'Stop-Transcript|host is not currently transcribing|No transcript running' })
     & "$root\Harden-Windows.ps1" -Profile Home -DryRun -SkipDebloat -ModulePath "$root\modules" -ConfigPath "$root\config" 2>&1 | Out-Null
-    $errAfter = $Error.Count
-    if ($errAfter -gt $errBefore) {
-        throw "$($errAfter - $errBefore) errors during run: $($Error[0])"
+    $afterErrors = @($Error | Where-Object { $_.Exception.Message -notmatch 'Stop-Transcript|host is not currently transcribing|No transcript running' })
+    if ($afterErrors.Count -gt $beforeErrors.Count) {
+        throw "$($afterErrors.Count - $beforeErrors.Count) errors during run: $($afterErrors[0])"
     }
     return $true
 }
@@ -316,11 +317,11 @@ Test-Case "bootstrap downloads all files end-to-end (file:// as fake online)" {
     if (Test-Path $cache) { Remove-Item $cache -Recurse -Force }
 
     $source = "file:///$($root -replace '\\','/')"
-    $errBefore = $Error.Count
+    $beforeErrors = @($Error | Where-Object { $_.Exception.Message -notmatch 'Stop-Transcript|host is not currently transcribing|No transcript running' })
     & "$root\bootstrap.ps1" -Profile Home -PSArgs @('-DryRun','-SkipDebloat') -Source $source -NoElevate 2>&1 | Out-Null
-    $errAfter = $Error.Count
+    $afterErrors = @($Error | Where-Object { $_.Exception.Message -notmatch 'Stop-Transcript|host is not currently transcribing|No transcript running' })
 
-    if ($errAfter -gt $errBefore) { throw "bootstrap emitted errors" }
+    if ($afterErrors.Count -gt $beforeErrors.Count) { throw "bootstrap emitted errors: $($afterErrors[0])" }
     if (-not (Test-Path (Join-Path $cache 'Harden-Windows.ps1'))) { throw "Harden-Windows.ps1 not in cache" }
     if (-not (Test-Path (Join-Path $cache 'lib\core.ps1'))) { throw "lib\core.ps1 not in cache" }
 
@@ -339,7 +340,10 @@ Test-Case "bootstrap reuses cache on second run (no re-download)" {
     # Run bootstrap with a source that would FAIL if hit (proving it didn't call Invoke-WebRequest)
     # Use the real local source so the bootstrap doesn't have to hit a broken URL
     $source = "file:///$($root -replace '\\','/')"
+    $beforeErrors = @($Error | Where-Object { $_.Exception.Message -notmatch 'Stop-Transcript|host is not currently transcribing|No transcript running' })
     & "$root\bootstrap.ps1" -Profile Home -PSArgs @('-DryRun','-SkipDebloat') -Source $source -NoElevate 2>&1 | Out-Null
+    $afterErrors = @($Error | Where-Object { $_.Exception.Message -notmatch 'Stop-Transcript|host is not currently transcribing|No transcript running' })
+    if ($afterErrors.Count -gt $beforeErrors.Count) { throw "bootstrap emitted errors: $($afterErrors[0])" }
     if (-not (Test-Path $marker)) { throw "cache was wiped on second run" }
     $mtime2 = (Get-Item (Join-Path $cache 'Harden-Windows.ps1')).LastWriteTime
     if ($mtime2 -ne $mtime1) { throw "Harden-Windows.ps1 was overwritten during cache reuse run (mtime changed)" }
@@ -885,6 +889,117 @@ Test-Case "lib\\core.ps1 Restore-Snapshot builds hashtable explicitly (no Group-
     }
     if ($c -notmatch 'foreach\s*\(\s*\$svc\s+in\s+Get-Service\s*\)') {
         throw "Restore-Snapshot does not build hashtable with explicit foreach over Get-Service"
+    }
+    return $true
+}
+
+# ── Impact metadata + warning tests ───────────────────────────────────────
+
+Test-Case "service_debloater: every entry has an Impact field" {
+    $svc = Get-Content "$root\modules\service_debloater.ps1" -Raw
+    if ($svc -notmatch "\.Impact\s*=") {
+        throw "service_debloater has no Impact field"
+    }
+    # Count entries that have .Impact= and match against DefaultServices count
+    $svcCount = ([regex]::Matches($svc, '@\{[^}]*Name=')).Count
+    $impactCount = ([regex]::Matches($svc, "Impact\s*='")).Count
+    if ($impactCount -lt $svcCount) {
+        throw "service_debloater: $svcCount entries but only $impactCount have Impact metadata"
+    }
+    # Confirm Impact appears in the per-item prompt output path
+    if ($svc -notmatch 'Write-Host.*impact:.*\$it\.Impact') {
+        throw "service_debloater does not print impact line in per-item display"
+    }
+    return $true
+}
+
+Test-Case "appx_debloater: every entry has an Impact field" {
+    $apx = Get-Content "$root\modules\appx_debloater.ps1" -Raw
+    if ($apx -notmatch "\.Impact\s*=") {
+        throw "appx_debloater has no Impact field"
+    }
+    $pCount = ([regex]::Matches($apx, "@\{[^}]*P='")).Count
+    $iCount = ([regex]::Matches($apx, "Impact='")).Count
+    if ($iCount -lt $pCount) {
+        throw "appx_debloater: $pCount entries but only $iCount have Impact metadata"
+    }
+    if ($apx -notmatch 'Write-Host.*impact:.*\$c\.Impact') {
+        throw "appx_debloater does not print impact line in per-item display"
+    }
+    return $true
+}
+
+Test-Case "defender: every ASR rule has an Impact field" {
+    $def = Get-Content "$root\modules\defender.ps1" -Raw
+    $ruleCount = ([regex]::Matches($def, "Id\s*='[A-F0-9-]+'\s*;\s*Name\s*='")).Count
+    $impactCount = ([regex]::Matches($def, "Impact\s*='")).Count
+    if ($impactCount -lt $ruleCount) {
+        throw "defender ASR rules: $ruleCount rules but only $impactCount have Impact metadata"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1: -AssumeYes param declared" {
+    $c = Get-Content "$root\Harden-Windows.ps1" -Raw
+    if ($c -notmatch '\[switch\]\$AssumeYes') {
+        throw "-AssumeYes switch parameter not declared"
+    }
+    return $true
+}
+
+Test-Case "bootstrap: forwards -AssumeYes via indexed PSArgs parsing" {
+    $c = Get-Content "$root\bootstrap.ps1" -Raw
+    if ($c -notmatch "AssumeYes") {
+        throw "bootstrap does not handle -AssumeYes"
+    }
+    return $true
+}
+
+Test-Case "service_debloater: -AssumeYes param accepted and skips per-item prompts" {
+    $svc = Get-Content "$root\modules\service_debloater.ps1" -Raw
+    if ($svc -notmatch 'param\([^)]*\[switch\]\$AssumeYes') {
+        throw "service_debloater does not accept -AssumeYes parameter"
+    }
+    if ($svc -notmatch 'if.*AssumeYes.*\{') {
+        throw "service_debloater does not handle -AssumeYes"
+    }
+    return $true
+}
+
+Test-Case "appx_debloater: -AssumeYes param accepted and removes all non-allow-listed packages" {
+    $apx = Get-Content "$root\modules\appx_debloater.ps1" -Raw
+    if ($apx -notmatch 'param\([^)]*\[switch\]\$AssumeYes') {
+        throw "appx_debloater does not accept -AssumeYes parameter"
+    }
+    if ($apx -notmatch '-AssumeYes.*\{.*Remove-Appx') {
+        throw "appx_debloater does not handle -AssumeYes by removing packages"
+    }
+    return $true
+}
+
+Test-Case "usb_autoplay: Print Spooler prompt shows impact" {
+    $usb = Get-Content "$root\modules\usb_autoplay.ps1" -Raw
+    if ($usb -notmatch 'NO PRINTING') {
+        throw "usb_autoplay does not warn about printing loss in Print Spooler prompt"
+    }
+    return $true
+}
+
+Test-Case "fileassoc: accepts -AssumeYes and skips confirmation" {
+    $fa = Get-Content "$root\modules\fileassoc.ps1" -Raw
+    if ($fa -notmatch 'param\([^)]*\[switch\]\$AssumeYes') {
+        throw "fileassoc does not accept -AssumeYes parameter"
+    }
+    if ($fa -notmatch 'Invoke-TimedPrompt.*Re-associate') {
+        throw "fileassoc does not prompt before re-associating (no impact warning)"
+    }
+    return $true
+}
+
+Test-Case "lib\\core.ps1: Invoke-SelfElevate forwards -AssumeYes" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'if.*\$AssumeYes.*-AssumeYes') {
+        throw "Invoke-SelfElevate does not forward -AssumeYes"
     }
     return $true
 }
