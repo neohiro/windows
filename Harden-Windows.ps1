@@ -25,6 +25,8 @@ param(
 
     [switch]$SkipDebloat,
 
+    [switch]$AssumeYes,
+
     [hashtable]$AllowListOverride = @{},
 
     [string]$ModulePath = "$PSScriptRoot\modules",
@@ -147,14 +149,20 @@ if ($AllowListOverride.Appx) {
 # Merge module-level allow-lists. $runtimeAl.Modules has been normalized to a
 # hashtable when the .psd1 Modules branch ran; if no .psd1 Modules were given,
 # it may still be a PSCustomObject (@{} serialized as JSON). Handle both.
-$allAllowList = @(Coalesce $runtimeAl.Services @())
+# Flatten to a clean string array: hashtable keys are module-name strings and
+# hashtable values are string arrays; both need to be included.
+$allAllowList = @($runtimeAl.Services | Where-Object { $_ -is [string] -and $_ })
 if ($null -ne $runtimeAl.Modules) {
     if ($runtimeAl.Modules -is [hashtable]) {
-        $allAllowList += $runtimeAl.Modules.Values
+        # Keys are module names, Values are string arrays — flatten both.
+        $allAllowList += $runtimeAl.Modules.Keys
+        $allAllowList += $runtimeAl.Modules.Values | Where-Object { $_ -is [string] }
     } elseif ($runtimeAl.Modules.PSObject) {
-        $allAllowList += $runtimeAl.Modules.PSObject.Properties.Value
+        $allAllowList += $runtimeAl.Modules.PSObject.Properties.Value | Where-Object { $_ -is [string] }
     }
 }
+# Deduplicate so a name appearing in both Services and Modules is only listed once.
+$allAllowList = @($allAllowList | Select-Object -Unique)
 
 # --- Load all module functions ------------------------------------------------
 $moduleFiles = Get-ChildItem -Path $ModulePath -Filter '*.ps1' -ErrorAction SilentlyContinue
@@ -272,7 +280,7 @@ foreach ($modName in $selectedModules) {
     Write-Section "Module: $modName"
     if (Get-Command $fnName -ErrorAction SilentlyContinue) {
         try {
-            & $fnName -DryRun $DryRun -AllowList $allAllowList
+            & $fnName -DryRun $DryRun -AllowList $allAllowList -AssumeYes:$AssumeYes
         } catch {
             Write-Warn "Module error [$modName]: $($_.Exception.Message)"
             Add-Change $modName 'module' '?' 'error' 'ERR'

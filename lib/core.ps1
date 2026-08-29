@@ -13,10 +13,11 @@ function Invoke-SelfElevate {
         # Forward only serializable scalar arguments to avoid shell-arg quoting issues
         # (hashtables like AllowListOverride cannot be safely embedded in -ArgumentList).
         $argList = @('-NoProfile','-ExecutionPolicy','Bypass','-File', "`"$PSCommandPath`"")
-        if ($Profile)     { $argList += "-Profile `"$Profile`"" }
-        if ($DryRun)      { $argList += '-DryRun' }
-        if ($SkipDebloat) { $argList += '-SkipDebloat' }
-        if ($Rollback)    { $argList += '-Rollback' }
+        if ($Profile)      { $argList += "-Profile `"$Profile`"" }
+        if ($DryRun)       { $argList += '-DryRun' }
+        if ($SkipDebloat)  { $argList += '-SkipDebloat' }
+        if ($Rollback)     { $argList += '-Rollback' }
+        if ($AssumeYes)    { $argList += '-AssumeYes' }
         Start-Process powershell.exe -Verb RunAs -ArgumentList $argList
         exit
     }
@@ -185,9 +186,24 @@ function Invoke-TimedPrompt {
     # Non-interactive context: never block. Use the default.
     if (-not (Test-IsInteractive)) { return $Default.ToUpper() }
     Write-Host "$Message [$Default] " -NoNewline -ForegroundColor Yellow
-    $resp = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+
+    # Poll for a keypress in a background thread, returning either the captured
+    # character or $null when the timer fires. Using ReadKey directly would
+    # block indefinitely on stdin in some hosts; the poll loop guarantees a
+    # bounded wait that honours $TimeoutSeconds.
+    $key = $null
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        if ($Host.UI.RawUI.KeyAvailable) {
+            $resp = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+            $key = $resp.Character
+            break
+        }
+        Start-Sleep -Milliseconds 50
+    }
     Write-Host ""
-    if ($resp.Character -in $ValidChars) { return $resp.Character.ToString().ToUpper() }
+
+    if ($null -ne $key -and $key -in $ValidChars) { return $key.ToString().ToUpper() }
     return $Default.ToUpper()
 }
 

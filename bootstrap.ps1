@@ -225,6 +225,7 @@ while ($i -lt $PSArgs.Count) {
     if ($a -eq '-DryRun')              { $forwardArgs.DryRun = $true; $i++; continue }
     if ($a -eq '-SkipDebloat')         { $forwardArgs.SkipDebloat = $true; $i++; continue }
     if ($a -eq '-Rollback')            { $forwardArgs.Rollback = $true; $i++; continue }
+    if ($a -eq '-AssumeYes')           { $forwardArgs.AssumeYes = $true; $i++; continue }
     if ($a -eq '-Profile')             { $i++; if ($i -lt $PSArgs.Count) { $forwardArgs.Profile = $PSArgs[$i] }; $i++; continue }
     if ($a -match '^-Profile:(.+)$')  { $forwardArgs.Profile = $Matches[1]; $i++; continue }
     Write-Host "[ii] Unknown forwarded arg ignored: $a" -ForegroundColor DarkGray

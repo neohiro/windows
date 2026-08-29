@@ -1,26 +1,190 @@
 # Windows
+
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgray.svg)](https://github.com/)
 [![Build Status](https://github.com/neohiro/windows/actions/workflows/release.yml/badge.svg)](https://github.com/neohiro/windows/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Windows 10 & 11 New Install Manual Settings
+Windows 10 & 11 security hardening — automated and documented. This repository contains:
 
-Using run dialog and via basic settings you can start improving security inside settings after a fresh Windows installation:
+- **`Harden-Windows.ps1`** — the main modular hardening orchestrator (recommended entry point)
+- **`bootstrap.ps1`** — one-line installer: `irm http://bit.ly/hardenwin | iex`
+- **`harden.cmd`** — CLI launcher for the orchestrator
+- **`modules/`** — individual hardening modules (ASR, firewall, services, debloat, etc.)
+- **`lib/core.ps1`** — shared library: logging, snapshots, rollback, allow-lists
 
-## ⚡ Automated hardening script
+## ⚡ Quick start
 
-[`windows_hardening.cmd`](windows_hardening.cmd) automates a large part of this guide: hardened file associations against ransomware, Defender & ASR configuration, firewall rules, DLL load-order protection, privacy settings and more.
+```powershell
+irm https://raw.githubusercontent.com/neohiro/windows/main/bootstrap.ps1 | iex -Profile Home
+```
 
-1. Download `windows_hardening.cmd` from this repository.
-2. Open an **elevated** Command Prompt (`Run as administrator`).
-3. Run the script and review its output.
-4. Reboot afterwards.
+Or download and run locally:
 
-> ⚠️ **Note:** the script re-associates `.bat` and other script files to open in Notepad instead of executing. If you legitimately use these extensions you will need to run them manually from cmd/PowerShell or right-click → *Run as administrator*.
+```powershell
+.\Harden-Windows.ps1 -Profile Home
+.\Harden-Windows.ps1 -Profile Workstation
+.\Harden-Windows.ps1 -DryRun           # preview without making changes
+.\Harden-Windows.ps1 -Rollback         # restore last snapshot
+.\Harden-Windows.ps1 -AssumeYes       # skip interactive prompts (CI/automation)
+```
 
-Credits & references are documented at the top and bottom of the script — thanks [@jaredhaight](https://github.com/jaredhaight) (firewall config), [@ricardojba](https://github.com/ricardojba) (DLL Safe Order Search) and [@jessicaknotts](https://github.com/jessicaknotts) (Exploit Guard testing). For debloating, see [Windows10Debloater](https://github.com/Sycnex/Windows10Debloater).
+> **⚠️ Every interactive module shows a per-item impact warning before you choose.
+> Some actions are irreversible without a reboot. Always review the impact column.**
 
-## 🖱️ Manual steps
+## 📋 Module impact reference
+
+Every module below may change or remove operating system features. The **User Impact** column
+describes what is lost or degraded. Review this before running with `-AssumeYes`.
+
+### 🔴 High-impact modules — read carefully
+
+| Module | What it does | User Impact if disabled / removed |
+|---|---|---|
+| **Print Spooler** (`usb_autoplay`) | Stops and disables the Print Spooler service | **No printing.** All USB, network, and PDF printers stop working. Re-enable with `Set-Service Spooler -StartupType Automatic; Start-Service Spooler`. PrintNightmare remote-code-execution risk is eliminated. |
+| **File associations** (`fileassoc`) | Re-associates `.bat .vbs .js .jse .hta .wsf` to Notepad instead of the script host | **Scripts do not execute when double-clicked.** You must run them explicitly from PowerShell (`.\script.bat`) or Command Prompt. Power-user workflow break. |
+| **AppX debloater** (`appx_debloater`) | Removes preinstalled Microsoft and third-party Store apps | Specific apps are removed — see the **AppX Impact Table** below. **Some removed apps cannot be restored without reinstalling from the Microsoft Store.** |
+| **Service debloater** (`service_debloater`) | Disables or sets to Manual a curated list of 35 Windows services | See the **Service Impact Table** below. Some disables can break authentication (Biometrics), search, clipboard sync, or Xbox features. |
+
+### 🟡 Medium-impact modules
+
+| Module | What it does | User Impact |
+|---|---|---|
+| **Windows Defender + ASR** (`defender`) | Enables ASR rules, sandboxing, real-time protection, Exploit Protection | No user impact. Security posture is raised. ASR rules are advisory and may log events in the Windows Event Log. |
+| **Firewall** (`firewall`) | Enables Windows Firewall with block rules for common attack vectors | No direct user impact. Legitimate inbound connections (RDP, file sharing, development servers) may be blocked if not explicitly allowed. |
+| **SMB / Network** (`smb_network`) | Disables SMBv1, enables signing, disables NetBIOS/LLMNR | No impact on modern networks. Legacy devices or very old NAS units may become inaccessible. |
+| **PowerShell logging** (`powershell_logging`) | Enables script block logging, module logging, transcription | No direct user impact. Administrators can see all PowerShell activity in Event Viewer. |
+| **Audit logging** (`audit_logging`) | Enables comprehensive Windows audit policies | No direct user impact. Additional events written to the Security Event Log. |
+| **Privacy** (`privacy`) | Disables telemetry and data-sharing services | Some personalization features in Microsoft apps may degrade. Error reporting to Microsoft stops. |
+| **Account lockout** (`account_lockout`) | Sets account lockout threshold, resets policy | No direct user impact. Legitimate failed logins (e.g. mistyped password) now lock the account after 5 attempts. |
+| **PowerShell v2** (`powershell_v2`) | Disables Windows PowerShell 2.0 engine | Fileless attacks via PowerShell v2 are blocked. No impact on modern PowerShell 5.1/7 workflows. |
+| **USB AutoPlay** (`usb_autoplay`) | Disables AutoPlay on all drive types | USB media no longer auto-opens when inserted. Manual navigation required. |
+| **Browser hardening** (`browser`) | Configures Chrome/Edge group policy for security | No direct user impact. Some browser extensions or enterprise policies may behave differently. |
+| **Office hardening** (`office`) | Disables macros, DDE in Office apps | **Macros in Office documents are blocked.** Legitimate macro workflows in Excel/Word require signed or explicitly allowed macros. |
+| **Biometrics** (`biometrics`) | Enables facial recognition anti-spoofing, disables camera on lock screen | No direct impact. Enhanced protection against biometric spoofing on lock screen. |
+| **Backup/Recovery** (`backup_recovery`) | Configures Windows Backup and File History | No direct impact. Backup schedules are enabled if not already set. |
+| **Optional Features** (`optional_features`) | Disables unwanted Windows optional features | Specific Windows features (e.g. Hyper-V,Containers) are disabled. Only affects features already present. |
+| **Core settings** (`core`) | Enables DEP, UAC, secure DLL load order | No direct user impact. Hardens the OS baseline. |
+
+---
+
+## 🖥️ Service debloater impact table
+
+> **⚠️ Printing**: PrintSpooler is the most impactful entry. Disabling it means **no printing from any application until the service is re-enabled**. Use `KeepPrintSpooler` in your allow-list if you have a printer.
+
+| Service | Default action | User Impact |
+|---|---|---|
+| `PrintSpooler` | **Disabled** | **NO PRINTING.** All printers stop. Required by most print workflows. |
+| `TabletInputService` | Disabled | **On-screen keyboard and handwriting panel unavailable.** Accessibility risk for touch-only devices. Keep if you rely on the OSK. |
+| `WbioSrvc` (Biometrics) | Manual | **Windows Hello fingerprint/face login unavailable.** Users must use PIN or password. |
+| `WSearch` (Search Indexer) | Manual | **Start menu and File Explorer search is slower.** Index-based results disabled. |
+| `SysMain` (Superfetch) | Manual | **Apps may launch more slowly after a fresh reboot.** Memory prefetch reduced. |
+| `DiagTrack` (Telemetry) | Disabled | **CEIP telemetry not sent.** Some personalization features in Microsoft apps degrade. |
+| `OneSyncSvc` | Disabled | **Mail, Calendar, People, and UWP apps stop syncing your Microsoft account data.** |
+| `CDPUserSvc` | Disabled | **Clipboard sync between PC and phone, Cast to Device, Projecting fail.** |
+| `sshd` | Disabled | **Cannot SSH into this machine.** Only affects users running an SSH server. |
+| `RemoteRegistry` | Disabled | **Security gain:** other computers cannot read this machine's registry remotely. |
+| `SharedAccess` (ICS) | Disabled | **Cannot share internet via hotspot/tethering.** |
+| `RemoteAccess` (VPN) | Disabled | **VPN and DirectAccess connectivity disabled.** |
+| `WMPNetworkSvc` | Disabled | **DLNA/UPnP media streaming from WMP to TVs/speakers disabled.** |
+| `WerSvc` | Disabled | **Error reports not sent to Microsoft.** Problem Reports tool shows no data. |
+| `lfsvc` (Geolocation) | Disabled | **Maps apps cannot determine device location.** Weather apps may degrade. |
+| `TrkWks` (Link Tracking) | Disabled | **Shortcuts and linked files on network shares may break after renames.** |
+| `MapsBroker` | Disabled | **Offline maps cannot be downloaded or updated.** |
+| `edgeupdate` / `edgeupdatem` | Manual | **Microsoft Edge cannot auto-update.** Manual updates required. |
+| `XblAuthManager` / `XblGameSave` / `XboxGipSvc` / `XboxNetApiSvc` | Disabled | **Xbox social, cloud save, multiplayer, and wireless controller features impaired.** |
+| `BcastDVRUserService` | Disabled | **Xbox Game Bar recording and broadcasting unavailable.** |
+| `CaptureService` / `FrameServer` | Disabled | **Some screenshot/scraping APIs and multi-app camera access degrade.** |
+| `HomeGroupListener` / `HomeGroupProvider` | Disabled | **HomeGroup file sharing unavailable** (deprecated since Win10 1803 — unlikely to affect any real user). |
+| `NetTcpPortSharing` | Disabled | **WCF services using net.tcp binding cannot start.** Rare. |
+| `RetailDemo` | Disabled | Retail demo mode unavailable (store PCs only). |
+| `Fax` | Disabled | Windows Fax and Scan cannot send/receive faxes. |
+| `UnistoreSvc` / `PimIndexMaintenanceSvc` | Disabled | UWP apps cannot save structured user data / contact search. |
+| `dmwappushservice` | Disabled | Some third-party apps may not receive push notifications. |
+
+---
+
+## 📦 AppX debloater impact table
+
+> **⚠️ Removed apps cannot always be restored from the Store.** Some preinstalled apps are tied to system components. Test on a non-production machine first, or use the `[A]` allow-list shortcut during the prompt.
+
+| App pattern | User Impact |
+|---|---|
+| `Microsoft.BingWeather` | No built-in Weather app or tile |
+| `Microsoft.GetHelp` | No "Get Help" app |
+| `Microsoft.Getstarted` | No Tips welcome app |
+| `Microsoft.Messaging` | No built-in SMS/Messaging app |
+| `Microsoft.People` | No People contacts app |
+| `Microsoft.WindowsAlarms` | No Alarms & Clock app |
+| `Microsoft.WindowsCamera` | No built-in Camera app |
+| `microsoft.windowscommunicationsapps` | **No Mail and Calendar** (combined package). Use Outlook Web or the Store version separately. |
+| `Microsoft.WindowsFeedbackHub` | No Feedback Hub; some diagnostic data paths affected |
+| `Microsoft.WindowsMaps` | No Maps app |
+| `Microsoft.WindowsSoundRecorder` | No Voice Recorder app |
+| `Microsoft.YourPhone` | No Phone Link / PC-phone integration |
+| `Microsoft.549981C3F5F10` (Cortana) | Cortana consumer removed |
+| `Microsoft.Microsoft3DViewer` | No 3D Viewer app |
+| `Microsoft.ScreenSketch` | No Snip & Sketch / Snipping Tool |
+| `Microsoft.PowerAutomateDesktop` | **Cannot record UI automations with Power Automate Desktop.** |
+| `Microsoft.OneNote` | No preinstalled OneNote (reinstall from Office/Store if needed) |
+| `Microsoft.Office.Sway` | No Sway presentation app |
+| `SpotifyAB.SpotifyMusic*` | Preinstalled Spotify removed (reinstall from Store if needed) |
+| `king.com.*` | Preinstalled Candy Crush games removed |
+| `Duolingo*` / `PandoraMedia*` / `AdobeSystemIncorporated*` | Preinstalled third-party apps removed |
+| `Microsoft.Advertising.Xaml*` | Some apps depending on the Ad SDK may not function |
+
+---
+
+## 🔒 ASR rule reference
+
+Attack Surface Reduction rules are enabled in **Audit mode** (logged but not enforced) or **Enabled mode** (blocked).
+This script enables them in **Enabled mode**. No direct user impact — legitimate activity is rarely affected.
+
+| ASR Rule | What it blocks |
+|---|---|
+| `BlockOfficeChildProcess` | Office macros spawning child processes |
+| `BlockProcessInjection` | Code injection into other processes |
+| `BlockWin32ApiCallsInMacros` | Win32 API calls from Office VBA macros |
+| `BlockOfficeExecutableContent` | Executable content in Office documents |
+| `BlockObfuscatedScripts` | Obfuscated PowerShell / JScript / VBScript |
+| `BlockExecutableEmailContent` | Executable attachments caught at the email client |
+| `BlockJsVbScriptLaunchExe` | Script files launching executables |
+| `BlockLsassCredTheft` | Reading LSASS for credential dumping (Mimikatz) |
+| `BlockUntrustedUsb` | Unsigned executables on USB drives |
+| `BlockAdobeReaderChild` | Adobe Reader spawning child processes |
+| `BlockWmiPersistence` | WMI event subscription persistence |
+| `BlockPsExecWmi` | Lateral movement via PsExec/WMI remote process launch |
+
+---
+
+## 🛡️ Allow-lists
+
+All interactive modules respect the allow-list at `%PROGRAMDATA%\HardenWindows\Config\allowlist.json`.
+You can also pass values at runtime:
+
+```powershell
+.\Harden-Windows.ps1 -AllowListOverride @{ Services = @('PrintSpooler','WbioSrvc') }
+```
+
+Or add items interactively with the `[A]` shortcut during the appx/service prompts.
+
+---
+
+## ↩️ Rollback
+
+Every non-dry-run execution creates a named snapshot before applying changes.
+Rollback restores the registry hives and services from that snapshot.
+
+```powershell
+.\Harden-Windows.ps1 -Rollback
+# Or from the interactive menu: press R
+```
+
+Rollback does **not** remove apps installed by the AppX debloater — only system services and registry settings.
+System Restore points are separate and created on demand.
+
+---
+
+## 📖 Manual steps (supplementary)
 
 Windows button + R for Advanced System Settings:
 ```
