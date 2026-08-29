@@ -98,6 +98,8 @@ jobs:
 
       - name: Verify Release Assets
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $release = gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name'
           $expected = @('bootstrap.ps1','manifest.sha256','Harden-Windows.ps1','harden.cmd','README.md')
