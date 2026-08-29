@@ -25,11 +25,30 @@ Or download and run locally:
 .\Harden-Windows.ps1 -Profile Workstation
 .\Harden-Windows.ps1 -DryRun           # preview without making changes
 .\Harden-Windows.ps1 -Rollback         # restore last snapshot
-.\Harden-Windows.ps1 -AssumeYes       # skip interactive prompts (CI/automation)
+.\Harden-Windows.ps1 -AssumeYes        # skip interactive prompts (CI/automation)
+.\Harden-Windows.ps1 -ConfirmImpact    # bypass typing "Yes"/"yes" for high-impact actions
+.\Harden-Windows.ps1 -ValidateAllowList # validate allow-list JSON and exit (no changes)
 ```
 
 > **⚠️ Every interactive module shows a per-item impact warning before you choose.
 > Some actions are irreversible without a reboot. Always review the impact column.**
+
+## 🛑 Confirmation contract
+
+High-impact actions (Print Spooler, biometrics service, tablet input, `.bat`/`.vbs`/`.js` re-association)
+require you to **type the literal string `Yes` or `yes`** at the prompt and press Enter. Single-character
+input (`y`, `Y`, `Enter`) is rejected — the full word is required so that headless terminals, accidental
+keypresses, and default shells cannot accidentally confirm a destructive action.
+
+| Flag | Effect on high-impact prompts |
+|---|---|
+| *(no flag)* | Type `Yes` or `yes` to proceed. |
+| `-AssumeYes` | Skips non-destructive module prompts, but **does NOT bypass** high-impact gates. You must still type `Yes`/`yes`. |
+| `-ConfirmImpact` | Bypasses high-impact gates entirely. Use only in CI/automation with a reviewed allow-list. |
+| `-DryRun` | All high-impact gates are short-circuited (no real change is made regardless of input). |
+
+To validate your allow-list JSON without applying anything: `.\Harden-Windows.ps1 -ValidateAllowList`.
+Exits 0 on success, 1 on any schema error.
 
 ## 📋 Module impact reference
 
@@ -354,5 +373,16 @@ Get-ChildItem HKLM:\SYSTEM\CurrentControlSet\Control\Lsa | Select-Object RunAsPP
   <a href="https://github.com/sponsors/neohiro"><img src="https://img.shields.io/badge/Sponsor%20on%20GitHub-%E2%9D%A4-EA4AAA?logo=githubsponsors&style=for-the-badge" alt="GitHub Sponsors"></a>&nbsp;&nbsp;
   <a href="https://www.patreon.com/frenzypenguin_media"><img src="https://img.shields.io/badge/Patreon-frenzypenguin__media-F96854?logo=patreon&style=for-the-badge" alt="Support on Patreon"></a>
 </p>
-#   C I   t r i g g e r  
+#   C I   t r i g g e r 
  
+ 
+
+
+---
+
+## 🔗 Related & Sponsorship
+
+- 💖 [Sponsor neohiro on GitHub](https://github.com/sponsors/neohiro) — covers API + hosting costs
+- 🌐 [neohiro.github.io](https://neohiro.github.io/) — main site
+- 🎬 [FrenzyPenguin Media](https://neohiro.github.io/frenzypenguin-media/) — video deep-dives
+- 🧬 [transhumanists](https://transhumanists.github.io/) — companion dashboard for human progress
