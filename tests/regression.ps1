@@ -3,6 +3,13 @@
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $root -or $root -eq '') { $root = 'C:\Users\Wout\Documents\Default Project\neohiro\windows' }
+
+$env:ProgramData = if ($env:ProgramData) { $env:ProgramData } else { 'C:\ProgramData' }
+$configDir = "$env:ProgramData\HardenWindows\Config"
+if (-not (Test-Path $configDir)) {
+    New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+}
+
 $pass = 0
 $fail = 0
 $results = @()
