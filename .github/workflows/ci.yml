@@ -25,6 +25,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Regression Tests
@@ -38,18 +42,23 @@ jobs:
         shell: pwsh
         run: |
           $repoRoot = (Get-Item -Path "." -Verbose).FullName
-          $files = Get-ChildItem -Recurse -File | Where-Object { 
-              $_.Extension -in '.ps1','.psd1','.cmd','.md' -and 
-              $_.FullName -notmatch '\\.git\\' 
+          $files = Get-ChildItem -Recurse -File | Where-Object {
+              $_.Extension -in '.ps1','.psd1','.cmd','.md' -and
+              $_.FullName -notmatch '\\.git\\'
           } | Sort-Object FullName
-          
+
           $manifest = @()
           foreach ($f in $files) {
               $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
               $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\','/')
+              # Block path traversal
+              if ($rel -match '^\.\.\/|\/\.\.\/|^(\/|\\\\|[a-zA-Z]:)' -or $rel.Contains('..\')) {
+                  Write-Error "Manifest path traversal detected: $rel"
+                  exit 1
+              }
               $manifest += "$hash  $rel"
           }
-          
+
           $manifest | Set-Content manifest.sha256 -Encoding UTF8
           Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
 

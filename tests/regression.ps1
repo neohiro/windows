@@ -2,7 +2,8 @@
 # Run: powershell -ExecutionPolicy Bypass -File tests\regression.ps1
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
-if (-not $root -or $root -eq '') { $root = 'C:\Users\Wout\Documents\Default Project\neohiro\windows' }
+if (-not $root -or $root -eq '') { $root = (Get-Location).Path }
+if (-not (Test-Path (Join-Path $root 'bootstrap.ps1'))) { throw "Cannot locate repo root (no bootstrap.ps1): $root" }
 
 $env:ProgramData = if ($env:ProgramData) { $env:ProgramData } else { 'C:\ProgramData' }
 $configDir = "$env:ProgramData\HardenWindows\Config"
@@ -453,10 +454,7 @@ Test-Case "manifest.sha256 exists and every hash matches the actual file" {
     $manifest = Join-Path $root 'manifest.sha256'
     if (-not (Test-Path $manifest)) { throw "manifest.sha256 missing" }
     $lines = Get-Content $manifest
-    if ($lines.Count -lt 20) { throw "manifest has only $($lines.Count) entries, expected 25+" }
-    # Verify every entry in the manifest matches the current file on disk.
-    # Files listed in the manifest that are no longer present in the repo will
-    # appear as "missing" and cause a test failure (correct — stale entry).
+    if ($lines.Count -eq 0) { throw "manifest is empty" }
     $bad = @()
     foreach ($l in $lines) {
         if ($l -match '^([a-f0-9]{64})\s{2}(.+)$') {

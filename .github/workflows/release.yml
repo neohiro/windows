@@ -5,13 +5,13 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag (e.g., v1.0.1)'
-        required: true
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -35,15 +35,20 @@ jobs:
           }
           Write-Host "Tag format valid: $tag"
 
+      - name: Run Regression Tests
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File tests/regression.ps1
+
       - name: Regenerate Manifest
         shell: pwsh
         run: |
           $repoRoot = (Get-Item -Path "." -Verbose).FullName
-          $files = Get-ChildItem -Recurse -File | Where-Object { 
-              $_.Extension -in '.ps1','.psd1','.cmd','.md' -and 
-              $_.FullName -notmatch '\\.git\\' 
+          $files = Get-ChildItem -Recurse -File | Where-Object {
+              $_.Extension -in '.ps1','.psd1','.cmd','.md' -and
+              $_.FullName -notmatch '\\.git\\'
           } | Sort-Object FullName
-          
+
           $manifest = @()
           foreach ($f in $files) {
               $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
@@ -52,7 +57,7 @@ jobs:
           }
           $manifest | Set-Content manifest.sha256 -Encoding UTF8
           Write-Host "Generated manifest.sha256 with $($manifest.Count) entries"
-          
+
           # Show bootstrap hash for verification
           $bootHash = (Get-FileHash -Path bootstrap.ps1 -Algorithm SHA256).Hash.ToLower()
           Write-Host "bootstrap.ps1 SHA256: $bootHash"
@@ -68,18 +73,12 @@ jobs:
           if (-not (git diff --cached --quiet)) {
               git commit -m "chore: update manifest.sha256 for ${{ github.ref_name }}"
               # We are in detached HEAD (checked out tag). Push to the default branch.
-              $defaultBranch = '${{ github.event.repository.default_branch }}'
-              if ([string]::IsNullOrEmpty($defaultBranch)) { $defaultBranch = 'main' }
+              $defaultBranch = if ($env:GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH) { $env:GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH } else { 'main' }
               $repo = "https://x-access-token:${env:GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
               git push $repo "HEAD:refs/heads/$defaultBranch"
           } else {
               Write-Host "Manifest unchanged"
           }
-
-      - name: Run Regression Tests
-        shell: pwsh
-        run: |
-          powershell -ExecutionPolicy Bypass -File tests/regression.ps1
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
