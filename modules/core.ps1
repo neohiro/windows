@@ -28,20 +28,34 @@ function Set-CoreSettings {
     & $inv $cmd
 
     # Secure boot / TPM informational checks
-    $tpm = Get-Tpm
+    try {
+        $tpm = Get-Tpm -ErrorAction Stop
+    } catch {
+        $tpm = @{ TpmPresent = $false; TpmReady = $false }
+    }
     if ($tpm.TpmPresent -and $tpm.TpmReady) {
         Write-Pass "TPM ready (spec $($tpm.SpecVersion))"
     } else {
         Write-Warn "TPM not ready. BitLocker, HVCI, Credential Guard need it."
     }
 
-    try { $secureBoot = Confirm-SecureBootUEFI } catch { $secureBoot = $null }
+    try {
+        $secureBoot = Confirm-SecureBootUEFI -ErrorAction Stop
+    } catch {
+        $secureBoot = $null
+    }
     if ($secureBoot -eq $true) { Write-Pass "Secure Boot: ENABLED" }
     elseif ($secureBoot -eq $false) { Write-Warn "Secure Boot: DISABLED" }
     else { Write-Info "Secure Boot: not supported on this firmware" }
 
     # Credential Guard on Pro/Enterprise
-    $edition = (Get-CimInstance Win32_OperatingSystem).Caption
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+        $edition = $os.Caption
+    } catch {
+        Write-Info "Get-CimInstance failed: $($_.Exception.Message). Skipping Credential Guard check."
+        $edition = ''
+    }
     if ($edition -match 'Pro|Enterprise|Education') {
         $cmd = 'reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard" /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 1 /f'
         & $inv $cmd
