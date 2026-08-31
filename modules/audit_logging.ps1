@@ -42,8 +42,13 @@ function Set-AuditLogging {
             $auditErr++
         }
     }
-    $auditStatus = if ($auditErr -gt 0) { 'partial' } else { 'on' }
-    Add-Change $Module 'AdvancedAuditPolicy' 'off' $auditStatus $(if($DryRun){'DRY'}else{if($auditErr -eq 0){'OK'}else{'partial'}})
+    # Status field: OK when all subcategories succeeded, partial when some failed,
+    # ERR when all failed. Skips the brittle nested ternary from the prior version.
+    if ($auditErr -eq 0)        { $auditStatus = 'OK' }
+    elseif ($auditOk -eq 0)     { $auditStatus = 'ERR' }
+    else                         { $auditStatus = 'partial' }
+    if ($DryRun) { $auditStatus = 'DRY' }
+    Add-Change $Module 'AdvancedAuditPolicy' 'off' $auditStatus $auditStatus
 
     Add-Change $Module 'EventLogSize' '51200' '1024000' $(if($DryRun){'DRY'}else{'OK'})
     Add-Change $Module 'ProcessCreation4688' 'off' 'on' $(if($DryRun){'DRY'}else{'OK'})

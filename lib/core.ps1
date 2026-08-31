@@ -43,10 +43,51 @@ function Test-WindowsVersion {
     try {
         $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
     } catch {
+        Write-Warn "Get-CimInstance failed (WinRM/CIM may be unavailable): $($_.Exception.Message)"
         return $false
     }
     if ($os.Caption -match 'Windows 1[01]' -or $os.BuildNumber -ge 10240) { return $true }
     return $false
+}
+
+function Get-ErrorContext {
+    param([System.Management.Automation.ErrorRecord]$ErrorRecord)
+    $loc = $ErrorRecord.InvocationInfo
+    $script = if ($loc.ScriptName) { Split-Path $loc.ScriptName -Leaf } else { '<console>' }
+    $line   = if ($null -ne $loc.ScriptLineNumber) { $loc.ScriptLineNumber } else { '?' }
+    $fn     = if ($loc.MyCommand) { $loc.MyCommand.Name } else { '' }
+    $ctx = "at ${script}:${line}"
+    if ($fn) { $ctx += " [$fn]" }
+    return $ctx
+}
+
+function Write-RuntimeError {
+    param(
+        [string]$Phase,
+        [string]$Message,
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+    $ctx = if ($ErrorRecord) { Get-ErrorContext $ErrorRecord } else { '' }
+    Write-Host "[!!] [$Phase] $Message" -ForegroundColor Red
+    if ($ctx)       { Write-Host "       $ctx"       -ForegroundColor Red }
+    if ($ErrorRecord -and $ErrorRecord.Exception) {
+        Write-Host "       Exception: $($ErrorRecord.Exception.Message)" -ForegroundColor DarkGray
+    }
+}
+
+function Invoke-WithErrorFeedback {
+    param(
+        [Parameter(Mandatory)][string]$Phase,
+        [Parameter(Mandatory)][string]$Description,
+        [scriptblock]$Action
+    )
+    try {
+        $result = & $Action
+        return $result
+    } catch {
+        Write-RuntimeError -Phase $Phase -Message "FAILED: $Description" -ErrorRecord $_
+        return $null
+    }
 }
 
 # ----------------------------------------------
@@ -247,6 +288,13 @@ function New-Snapshot {
             $null = New-Item -ItemType Directory -Path $snapDir -ErrorAction Stop
             break  # success
         } catch {
+            $inner = $_.Exception.InnerException
+            $errCode = if ($null -ne $inner) { $inner.HResult } else { $null }
+            # 0xB7 = ERROR_ALREADY_EXISTS (collisions on rapid same-second calls).
+            # Anything else (permission denied, disk full, path too long) is fatal.
+            if ($errCode -ne 0xB7 -and $errCode -ne 183) {
+                throw "Cannot create snapshot directory '$snapDir': $($_.Exception.Message)"
+            }
             if ($attempt -ge $maxAttempts) { throw "Snapshot directory collision after $maxAttempts attempts: $snapDir" }
             Start-Sleep -Milliseconds (Get-Random -Minimum 1 -Maximum 50)
         }
@@ -263,14 +311,16 @@ function New-Snapshot {
     $regIndex = @()
     foreach ($h in $hives.Keys) {
         $file = Join-Path $snapDir $hives[$h]
-        # reg.exe exports the subtree. A non-zero exit just means the key is absent (fine on Home).
-        # We only add the .reg file to the manifest if reg.exe produced a non-empty result.
-        reg export $h $file /y 2>$null | Out-Null
+        $null = Invoke-WithErrorFeedback -Phase 'snapshot:reg-export' -Description "Export registry hive '$h'" -Action {
+            $output = @(& reg export $h $file /y 2>&1)
+            $exit = $LASTEXITCODE
+            if ($exit -ne 0 -and $exit -ne 1) {
+                throw "reg export exited $exit : $($output -join ' ')"
+            }
+        }
         if ((Test-Path $file) -and ((Get-Item $file).Length -gt 0)) {
             $regIndex += @{ Key = $h; File = $file }
         } else {
-            # Empty or zero-byte file (key absent). Remove the stub to keep the
-            # snapshot directory clean.
             Remove-Item $file -Force -ErrorAction SilentlyContinue
         }
     }
@@ -672,7 +722,10 @@ function Invoke-Cmd {
     }
     if ($Description) { Write-Info "Running: $Description" }
     $output = & $Cmd 2>&1
-    # Some commands (e.g. cmd /c ... 2>NUL) suppress the actual exit code;
+    # Some native commands (e.g. cmd /c ... 2>NUL) suppress the exit code and
+    # return 0 even when the real command failed. We check LASTEXITCODE and throw
+    # so callers' try/catch fires; if LASTEXITCODE is also 0 despite output being
+    # present, it means the command intentionally swallowed it and we treat it as OK.
     $exit = $LASTEXITCODE
     if ($exit -ne 0) {
         Write-Warn "Command exited $exit`: $Cmd"

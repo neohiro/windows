@@ -1385,5 +1385,233 @@ Test-Case "Test-WindowsVersion uses ErrorAction Stop (no unhandled throw)" {
 }
 
 
+Test-Case "Test-WindowsVersion uses ErrorAction Stop (no unhandled throw)" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'Get-CimInstance.*ErrorAction Stop') {
+        throw "Test-WindowsVersion does not use ErrorAction Stop on Get-CimInstance"
+    }
+    return $true
+}
+
+Test-Case "lib\\core.ps1 exports Get-ErrorContext, Write-RuntimeError, Invoke-WithErrorFeedback" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    foreach ($fn in @('Get-ErrorContext', 'Write-RuntimeError', 'Invoke-WithErrorFeedback')) {
+        if ($c -notmatch "function $fn\b") {
+            throw "Missing function: $fn"
+        }
+    }
+    return $true
+}
+
+Test-Case "New-Snapshot uses Invoke-WithErrorFeedback for reg export" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'Invoke-WithErrorFeedback.*reg.export') {
+        throw "New-Snapshot does not use Invoke-WithErrorFeedback for reg export"
+    }
+    if ($c -notmatch '\$LASTEXITCODE') {
+        throw "Invoke-WithErrorFeedback reg export wrapper does not check LASTEXITCODE"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1 has global error trap with Get-ErrorContext" {
+    $h = Get-Content "$root\Harden-Windows.ps1" -Raw
+    if ($h -notmatch 'trap\s*\{') {
+        throw "Harden-Windows.ps1 has no global error trap"
+    }
+    if ($h -notmatch 'Get-ErrorContext') {
+        throw "Harden-Windows.ps1 global trap does not call Get-ErrorContext"
+    }
+    if ($h -notmatch '\[!!\]\s*\[unhandled\]') {
+        throw "Harden-Windows.ps1 global trap does not emit labelled [unhandled] error"
+    }
+    return $true
+}
+
+Test-Case "Harden-Windows.ps1 module catch block uses Write-RuntimeError (not bare Write-Warn)" {
+    $h = Get-Content "$root\Harden-Windows.ps1" -Raw
+    # The old catch was: Write-Warn "Module error [$modName]: $($_..Exception.Message)"
+    # The new catch must use Write-RuntimeError with the full ErrorRecord.
+    if ($h -match 'Write-Warn.*Module error\s*\[') {
+        throw "Module catch block still uses bare Write-Warn instead of Write-RuntimeError"
+    }
+    if ($h -notmatch 'Write-RuntimeError.*module:\$modName') {
+        throw "Module catch block does not use Write-RuntimeError with module phase"
+    }
+    return $true
+}
+
+Test-Case "Get-ErrorContext returns script:line and function name from ErrorRecord" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch '\$loc\.ScriptName') {
+        throw "Get-ErrorContext does not read ScriptName"
+    }
+    if ($c -notmatch '\$loc\.ScriptLineNumber') {
+        throw "Get-ErrorContext does not read ScriptLineNumber"
+    }
+    if ($c -notmatch '\$loc\.MyCommand\.Name') {
+        throw "Get-ErrorContext does not read MyCommand.Name"
+    }
+    return $true
+}
+
+Test-Case "Write-RuntimeError surfaces the exception message in error output" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'Exception\.Message') {
+        throw "Write-RuntimeError does not surface Exception.Message"
+    }
+    return $true
+}
+
+Test-Case "Invoke-WithErrorFeedback returns `$null on error (not exception)" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'return \$null') {
+        throw "Invoke-WithErrorFeedback does not return `$null on failure (may throw instead)"
+    }
+    return $true
+}
+
+
+Test-Case "Get-ErrorContext null-safe on ScriptLineNumber" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -notmatch 'if \(\$null -ne \$loc\.ScriptLineNumber\)') {
+        throw "Get-ErrorContext does not null-guard ScriptLineNumber"
+    }
+    return $true
+}
+
+Test-Case "harden.cmd: ASCII only (no mojibake characters in output lines)" {
+    $cmd = Get-Content "$root\harden.cmd" -Raw
+    # The em-dash and box-drawing characters used in the old file were encoded
+    # as `?` on some terminals. The new file must use plain ASCII (--, |, etc.).
+    $nonAscii = [regex]::Matches($cmd, '[^\x00-\x7F]')
+    if ($nonAscii.Count -gt 0) {
+        $samples = ($nonAscii | Select-Object -First 3 | ForEach-Object { $_.Value }) -join ' '
+        throw "harden.cmd has $($nonAscii.Count) non-ASCII characters: $samples"
+    }
+    return $true
+}
+
+Test-Case "harden.cmd: forwards -ConfirmImpact" {
+    $cmd = Get-Content "$root\harden.cmd" -Raw
+    if ($cmd -notmatch '\-ConfirmImpact') {
+        throw "harden.cmd does not forward -ConfirmImpact"
+    }
+    if ($cmd -notmatch 'CONFIRM_IMPACT') {
+        throw "harden.cmd does not define CONFIRM_IMPACT variable"
+    }
+    return $true
+}
+
+Test-Case "harden.cmd: forwards -AssumeYes" {
+    $cmd = Get-Content "$root\harden.cmd" -Raw
+    if ($cmd -notmatch 'ASSUME_YES') {
+        throw "harden.cmd does not forward -AssumeYes"
+    }
+    return $true
+}
+
+Test-Case "harden.cmd: forwards -ValidateAllowList" {
+    $cmd = Get-Content "$root\harden.cmd" -Raw
+    if ($cmd -notmatch 'VALIDATE_ALLOWLIST') {
+        throw "harden.cmd does not forward -ValidateAllowList"
+    }
+    return $true
+}
+
+Test-Case "harden.cmd: -help exits 0 before admin check (no PowerShell launch)" {
+    $cmd = Get-Content "$root\harden.cmd" -Raw
+    # The :show_help label must `exit /b 0` BEFORE the `net session` admin
+    # check, so help works for un-elevated users.
+    $helpIdx = $cmd.IndexOf('SHOW_HELP=1')
+    $adminIdx = $cmd.IndexOf('net session')
+    if ($helpIdx -lt 0)  { throw "SHOW_HELP trigger not found" }
+    if ($adminIdx -lt 0) { throw "admin check not found" }
+    if ($adminIdx -lt $helpIdx) { throw "admin check appears before -help handler" }
+    return $true
+}
+
+Test-Case "harden.cmd: -help exit precedes PowerShell launch" {
+    $cmd = Get-Content "$root\harden.cmd" -Raw
+    $helpExit = $cmd.IndexOf('exit /b 0')
+    $psLaunch = $cmd.IndexOf('%POWERSHELL% %PS_ARGS%')
+    if ($helpExit -lt 0)  { throw "exit /b 0 not found" }
+    if ($psLaunch -lt 0)  { throw "PowerShell launch not found" }
+    if ($psLaunch -lt $helpExit) { throw "PowerShell launch precedes help exit (falls through)" }
+    return $true
+}
+
+
+Test-Case "modules\\core.ps1: Get-Tpm is error-guarded" {
+    $c = Get-Content "$root\modules\core.ps1" -Raw
+    if ($c -notmatch 'Get-Tpm.*ErrorAction Stop') {
+        throw "modules\\core.ps1: Get-Tpm is not wrapped in try/catch or use ErrorAction Stop"
+    }
+    return $true
+}
+
+Test-Case "modules\\core.ps1: Get-CimInstance (Credential Guard check) is error-guarded" {
+    $c = Get-Content "$root\modules\core.ps1" -Raw
+    if ($c -notmatch 'Get-CimInstance.*ErrorAction Stop') {
+        throw "modules\\core.ps1: Get-CimInstance for edition check has no error guard"
+    }
+    return $true
+}
+
+Test-Case "modules\\core.ps1: Confirm-SecureBootUEFI uses ErrorAction Stop" {
+    $c = Get-Content "$root\modules\core.ps1" -Raw
+    if ($c -notmatch 'Confirm-SecureBootUEFI.*ErrorAction Stop') {
+        throw "modules\\core.ps1: Confirm-SecureBootUEFI is not error-guarded"
+    }
+    return $true
+}
+
+
+Test-Case "global trap defined AFTER dot-source of lib\\core.ps1" {
+    $h = Get-Content "$root\Harden-Windows.ps1" -Raw
+    $dotIdx   = $h.IndexOf('. "$PSScriptRoot\lib\core.ps1"')
+    $trapIdx  = $h.IndexOf('if (-not (Test-Path function:\Get-ErrorContext))')
+    if ($dotIdx  -lt 0) { throw "dot-source of lib\core.ps1 not found" }
+    if ($trapIdx -lt 0) { throw "Get-ErrorContext guard not found" }
+    if ($trapIdx -lt $dotIdx) { throw "Get-ErrorContext guard is defined BEFORE dot-source (trap would call undefined function)" }
+    return $true
+}
+
+Test-Case "global trap registered BEFORE ValidateAllowList block (parse-time registration catches all code)" {
+    $h = Get-Content "$root\Harden-Windows.ps1" -Raw
+    $trapIdx  = $h.IndexOf('if (-not (Test-Path function:\Get-ErrorContext))')
+    $valIdx   = $h.IndexOf('if ($ValidateAllowList)')
+    if ($trapIdx -lt 0) { throw "trap definition not found" }
+    if ($valIdx  -lt 0) { throw "ValidateAllowList block not found" }
+    if ($trapIdx -gt $valIdx) { throw "trap is registered AFTER ValidateAllowList (errors in ValidateAllowList wont be caught)" }
+    return $true
+}
+
+Test-Case "audit_logging.ps1 uses explicit if/else for auditStatus (not nested ternary)" {
+    $a = Get-Content "$root\modules\audit_logging.ps1" -Raw
+    if ($a -match '\$auditStatus\s*=\s*if\s*\(\$.*\)') {
+        # Nested ternary like: ... ? ... : ( ... ? ... : ...)
+        if ($a -match '\?\s*[^:]+\?\s*[^:]+') {
+            throw "audit_logging still uses nested ternary for auditStatus"
+        }
+    }
+    if ($a -notmatch "if \(\`$auditErr -eq 0\)") {
+        throw "audit_logging does not use explicit if-else for auditErr check"
+    }
+    return $true
+}
+
+Test-Case "Invoke-Cmd has updated comment explaining LASTEXITCODE suppression" {
+    $c = Get-Content "$root\lib\core.ps1" -Raw
+    if ($c -match 'suppress the actual exit code;$') {
+        throw "Invoke-Cmd still has the old truncated comment about exit code suppression"
+    }
+    if ($c -notmatch 'LASTEXITCODE') {
+        throw "Invoke-Cmd does not reference LASTEXITCODE"
+    }
+    return $true
+}
+
+
 Write-Host "=== Results: $pass passed, $fail failed ===" -ForegroundColor $(if($fail -eq 0){'Green'}else{'Red'})
     exit $fail
