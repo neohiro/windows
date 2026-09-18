@@ -386,3 +386,5 @@ Get-ChildItem HKLM:\SYSTEM\CurrentControlSet\Control\Lsa | Select-Object RunAsPP
 - 🌐 [neohiro.github.io](https://neohiro.github.io/) — main site
 - 🎬 [FrenzyPenguin Media](https://neohiro.github.io/frenzypenguin-media/) — video deep-dives
 - 🧬 [transhumanists](https://transhumanists.github.io/) — companion dashboard for human progress
+
+[![Visitors](https://api.visitorbadge.io/api/visitors?path=github.com/neohiro/windows&label=Visitors&countColor=%23263759)](https://visitorbadge.io/status?path=github.com/neohiro/windows)
