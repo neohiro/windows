@@ -170,14 +170,24 @@ if ($needDownload) {
             if ($head -and $head -match '^\s*<\s*!?doctype\s+html|<html|<HTML') {
                 throw "Downloaded file is HTML, not the expected content (likely a 404/403 page)"
             }
-            if ($knownHashes.Count -gt 0 -and $knownHashes.ContainsKey($f)) {
-                $actual = (Get-FileHash -Path $dest -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash.ToLower()
-                if ($actual -ne $knownHashes[$f]) {
-                    Write-Host "  [!!] HASH MISMATCH: $f" -ForegroundColor Red
-                    Write-Host "       Expected : $($knownHashes[$f])" -ForegroundColor Red
-                    Write-Host "       Actual   : $actual" -ForegroundColor Red
-                    $failed += $f
-                    continue
+            if ($knownHashes.Count -gt 0) {
+                # Manifest keys are forward-slash (Linux/Windows-stable); $f uses
+                # OS-native backslashes on Windows. Normalize for lookup.
+                $fKey = $f.Replace('\','/')
+                if ($knownHashes.ContainsKey($fKey)) {
+                    $actual = (Get-FileHash -Path $dest -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash.ToLower()
+                    if ($actual -ne $knownHashes[$fKey]) {
+                        Write-Host "  [!!] HASH MISMATCH: $f" -ForegroundColor Red
+                        Write-Host "       Expected : $($knownHashes[$fKey])" -ForegroundColor Red
+                        Write-Host "       Actual   : $actual" -ForegroundColor Red
+                        $failed += $f
+                        continue
+                    }
+                } else {
+                    # No manifest entry — this should only happen if the file is not
+                    # part of the inventory (e.g. .github/profile/README.md). Surface
+                    # a warning so missing entries aren't silently skipped.
+                    Write-Host "  [ii] No manifest entry for $f — skipping hash check" -ForegroundColor DarkGray
                 }
             }
             Write-Host "  [OK] $f" -ForegroundColor Green

@@ -27,7 +27,7 @@ account. Highlights:
 ### 📚 Guides
 
 - 🪟 **[windows](https://github.com/neohiro/windows)** — STIG-style Windows 10/11 install hardening
-- 🐧 **[ubuntu](https://github.com/neohiro/ubuntu)** — Linux post-install hardening (firewall, encrypted DNS, Tor)
+- 🐧 **[linux](https://github.com/neohiro/linux)** — Linux post-install hardening (firewall, encrypted DNS, Tor)
 - 🌐 **[Cripple-NetStrip](https://github.com/neohiro/Cripple-NetStrip)** — Network hardening & encrypted DNS
 
 ### 🎬 Media

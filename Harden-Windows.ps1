@@ -50,6 +50,31 @@ if (-not (Test-Path Function:\Coalesce)) {
 # --- Bootstrap --------------------------------------------------------------
 . "$PSScriptRoot\lib\core.ps1"
 
+# Global error trap: registered here so Get-ErrorContext is in scope. In PS 5.1,
+# a bare trap{} only catches terminating errors; non-terminating errors are handled
+# by per-module try/catch. This catches the unexpected ones (e.g. Set-Service
+# throwing on a locked service, module script blocks that use -ErrorAction Stop).
+# Must be defined before the code that might throw (parse-time registration).
+if (-not (Test-Path function:\Get-ErrorContext)) {
+    function Get-ErrorContext {
+        param([System.Management.Automation.ErrorRecord]$ErrorRecord)
+        $loc = $ErrorRecord.InvocationInfo
+        $script = if ($loc.ScriptName) { Split-Path $loc.ScriptName -Leaf } else { '<console>' }
+        $line   = if ($null -ne $loc.ScriptLineNumber) { $loc.ScriptLineNumber } else { '?' }
+        $fn     = if ($loc.MyCommand) { $loc.MyCommand.Name } else { '' }
+        $ctx = "at ${script}:${line}"
+        if ($fn) { $ctx += " [$fn]" }
+        return $ctx
+    }
+}
+trap {
+    $ctx = if (Test-Path function:\Get-ErrorContext) { Get-ErrorContext $_ } else { '' }
+    Write-Host "[!!] [unhandled] $($_.Exception.Message)" -ForegroundColor Red
+    if ($ctx) { Write-Host "       $ctx" -ForegroundColor Red }
+    Add-Change 'orchestrator' 'unhandled' '?' "$($_.Exception.Message)" 'ERR' 2>$null
+    continue
+}
+
 # --- Validate allow-list and exit --------------------------------------------
 # Runs even before admin check — no system modifications.
 $script:ConfigDir = "$env:ProgramData\HardenWindows"
@@ -346,11 +371,12 @@ foreach ($modName in $selectedModules) {
                 & $fnName -DryRun $DryRun -AllowList $allAllowList -AssumeYes:$AssumeYes -ConfirmImpact:$ConfirmImpact
             }
         } catch {
-            Write-Warn "Module error [$modName]: $($_.Exception.Message)"
+            # Capture full context: phase = the module name; description = the function.
+            Write-RuntimeError -Phase "module:$modName" -Message "FAILED: $fnName" -ErrorRecord $_
             Add-Change $modName 'module' '?' 'error' 'ERR'
         }
     } else {
-        Write-Warn "Function '$fnName' not found in module: $modName"
+        Write-Warn "Function '$fnName' not found in module: $modName (check fnMap in Harden-Windows.ps1)"
     }
 }
 
